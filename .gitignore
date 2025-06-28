@@ -1,0 +1,6 @@
+*.o
+efsa
+depend
+save
+tags
+util/structgen
