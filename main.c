@@ -1232,8 +1232,6 @@ SKIP_SETUP:
 			c_ent = c_ent->next;
 		}
 	}
-	/* dump_sector(sector_get_sector(g_sectors, 0, 0, 0), stdout); */
-	/* puts(""); */
 
 	uint64_t last_blink = 0;
 	int need_redraw = 1;
@@ -1452,17 +1450,9 @@ SKIP_SETUP:
 							if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
 								if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
 									assert(sel_ent != NULL);
-									/*{
-									  entity_l_s *e = entity_enlist_limbs(control_ent);
-									  entity_s *en = select_entity(e);
-									  entity_l_free(e);
-									  if (en != NULL) {
-									  trigger...
-									  }
-									  }*/
 									trigger_touch(
 										control_ent,
-#warning TODO this should be a limb selector
+										/* TODO add limb selection menu*/
 										effect_by_type(control_ent->effects, EF_LIMB_SLOT),
 										sel_ent
 									);
@@ -1471,25 +1461,6 @@ SKIP_SETUP:
 							}
 						}
 					} break;
-					/*case SDLK_p: {
-						int sel_x = 8;
-						int sel_y = 8;
-						int sel_z = 0;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						sel_x = 8;
-						sel_y = 8;
-						entity_s *sel_ent = NULL;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-								assert(sel_ent != NULL);
-								trigger_punch(
-									control_ent,
-									sel_ent
-								);
-								trigger_done = 1;
-							}
-						}
-					} break;*/
 					case SDLK_d: {
 						int sel_x = 8;
 						int sel_y = 8;

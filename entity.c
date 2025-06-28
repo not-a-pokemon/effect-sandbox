@@ -613,7 +613,7 @@ void apply_gravity(entity_s *s) {
 				effect_s *new_ef = alloc_effect(EF_S_BUMP);
 				new_ef->type = EF_S_BUMP;
 				effect_s_bump_data *d = (void*)new_ef->data;
-#warning TODO bump into what
+				/* TODO bump into what */
 				d->ent = NULL;
 				d->force = 1;
 				effect_prepend(s, new_ef);
@@ -1228,7 +1228,7 @@ void hand_drop(entity_s *ent, effect_s *hand) {
 }
 
 void hand_put(entity_s *ent, effect_s *hand, entity_s *w) {
-#warning TODO reparent if w != NULL
+	/* TODO reparent if w != NULL */
 	if (hand->type == EF_LIMB_SLOT) {
 		effect_limb_slot_data *slot_data = (void*)hand->data;
 		if (slot_data->item != NULL) {
@@ -1742,12 +1742,11 @@ int entity_reachable(entity_s *s, effect_s *limb, entity_s *e) {
 	if (effect_by_type(e->effects, EF_PH_BLOCK) != NULL) {
 		return 1;
 	}
-#warning TODO for high/low limbs
+	/* TODO high/low limb types */
 	return 0;
 }
 
 entity_s* tracer_check_bump(entity_s *s, int x, int y, int z) {
-#warning TODO write this
 	int cx = 0, cy = 0, cz = 0, sx = x, sy = y, sz = z;
 	int ex, ey, ez;
 	if (!entity_coords(s, &ex, &ey, &ez)) {
