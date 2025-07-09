@@ -195,7 +195,7 @@ int main(int argc, char **argv) {
 					return 1;
 				}
 				output_func = fopen(argv[i + 1], "w");
-				if (output_struct == NULL) {
+				if (output_func == NULL) {
 					perror("failed to open function file");
 					return 1;
 				}

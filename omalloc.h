@@ -1,4 +1,3 @@
-// In the honor of DooM ZMalloc
 #pragma once
 #include <stdlib.h>
 
