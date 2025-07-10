@@ -1212,11 +1212,10 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "Failed to read dump\n");
 			return 1;
 		}
-		goto SKIP_SETUP;
+	} else {
+		setup_field();
 	}
 
-	setup_field();
-SKIP_SETUP:
 	entity_s *control_ent = NULL;
 	{
 		entity_s *c_ent = g_entities;

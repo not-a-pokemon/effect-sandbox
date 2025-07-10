@@ -15,8 +15,9 @@ effect_s* alloc_effect(effect_type t) {
 	effect_s *r;
 	if (t == EF_UNKNOWN) {
 		r = o_malloc(sizeof(effect_s) + 32);
+	} else {
+		r = o_malloc(sizeof(effect_s) + effect_data_size[t]);
 	}
-	r = o_malloc(sizeof(effect_s) + effect_data_size[t]);
 	r->type = t;
 	return r;
 }
@@ -1345,6 +1346,8 @@ void dump_effect(effect_s *e, FILE *stream) {
 	effect_dump_t f = effect_dump_functions[e->type];
 	if (f != NULL) {
 		f(e, stream);
+	} else {
+		fprintf(stderr, "[MSG] Un-dumpable effect %d\n", e->type);
 	}
 	/* fprintf(stream, "[!EF]"); */
 }
