@@ -1,4 +1,6 @@
-#pragma once
+#ifndef _efsa_ENTITY_H
+#define _efsa_ENTITY_H
+
 #include <stdint.h>
 #include "rng.h"
 
@@ -271,3 +273,5 @@ int entity_reachable(entity_s *s, effect_s *limb, entity_s *e);
 int entity_reachable_pos(entity_s *s, effect_s *limb, int x, int y, int z);
 
 entity_s* tracer_check_bump(entity_s *s, int x, int y, int z);
+
+#endif

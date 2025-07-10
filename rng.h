@@ -1,4 +1,6 @@
-#pragma once
+#ifndef _efsa_RNG_H
+#define _efsa_RNG_H
+
 #include <stdint.h>
 
 typedef struct rng_state_s {
@@ -8,3 +10,5 @@ typedef struct rng_state_s {
 
 void rng_init(rng_state_s *rng);
 uint32_t rng_next(rng_state_s *rng);
+
+#endif
