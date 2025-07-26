@@ -87,3 +87,19 @@ typedef struct effect_rotation_data {
 typedef struct effect_a_pressure_plate_data {
 	int thresold;
 } effect_a_pressure_plate_data;
+typedef struct effect_stats_data {
+	int str;
+	int dex;
+	int spd;
+} effect_stats_data;
+typedef struct effect_ph_liquid_data {
+	int amount;
+	enum liquid_type type;
+} effect_ph_liquid_data;
+typedef struct effect_container_data {
+	int cont_mask;
+	int capacity;
+} effect_container_data;
+typedef struct effect_container_item_data {
+	struct entity_s *ent;
+} effect_container_item_data;

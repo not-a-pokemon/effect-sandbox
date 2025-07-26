@@ -215,7 +215,7 @@ void apply_triggers(entity_s *s) {
 				effect_block_move_data *data = (void*)add->data;
 				int x, y, z;
 				entity_coords(s, &x, &y, &z);
-				data->delay = 1;
+				data->delay = 128;
 				data->x = 0;
 				data->y = 0;
 				switch (((x & 1) << 1) | (y & 1)) {
@@ -770,6 +770,12 @@ void effect_prepend(entity_s *s, effect_s *e) {
 }
 
 void apply_block_move(entity_s *s) {
+	effect_s *ef_stats = effect_by_type(s->effects, EF_STATS);
+	int speed = 64;
+	if (ef_stats != NULL) {
+		effect_stats_data *stats_d = (void*)ef_stats->data;
+		speed = stats_d->spd;
+	}
 	effect_s *ef_move = effect_by_type(s->effects, EF_BLOCK_MOVE);
 	if (ef_move != NULL) {
 		effect_s *ef_crea = effect_by_type(s->effects, EF_PH_ITEM);
@@ -785,8 +791,9 @@ void apply_block_move(entity_s *s) {
 				goto CANT_MOVE;
 			effect_block_move_data *ef_move_d = (void*)ef_move->data;
 			if (ef_move_d->delay > 0) {
-				ef_move_d->delay --;
-			} else {
+				ef_move_d->delay -= speed;
+			}
+			if (ef_move_d->delay <= 0) {
 				int x = ef_crea_d->x + ef_move_d->x;
 				int y = ef_crea_d->y + ef_move_d->y;
 				int z = ef_crea_d->z + ef_move_d->z;
@@ -1346,7 +1353,7 @@ void dump_effect(effect_s *e, FILE *stream) {
 	effect_dump_t f = effect_dump_functions[e->type];
 	if (f != NULL) {
 		f(e, stream);
-	} else {
+	} else if (effect_data_size[e->type] != 0) {
 		fprintf(stderr, "[MSG] Un-dumpable effect %d\n", e->type);
 	}
 	/* fprintf(stream, "[!EF]"); */
@@ -1886,6 +1893,10 @@ int effect_data_size[] = {
 	[EF_A_CIRCLE_MOVE] = 0,
 	[EF_A_PRESSURE_PLATE] = sizeof(effect_a_pressure_plate_data),
 	[EF_ROTATION] = sizeof(effect_rotation_data),
+	[EF_STATS] = sizeof(effect_stats_data),
+	[EF_PH_LIQUID] = sizeof(effect_ph_liquid_data),
+	[EF_CONTAINER] = sizeof(effect_container_data),
+	[EF_CONTAINER_ITEM] = sizeof(effect_container_item_data),
 };
 
 #include "gen-loaders.h"
@@ -1907,7 +1918,7 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_PUNCH] = effect_dump_punch,
 	[EF_MATERIAL] = effect_dump_material,
 	[EF_SIZE_SCALE] = effect_dump_size_scale,
-	[EF_AIM] = NULL,
+	[EF_AIM] = effect_dump_aim,
 	[EF_ATTACK] = effect_dump_attack,
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_dump_table_item,
@@ -1928,6 +1939,10 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_A_CIRCLE_MOVE] = NULL,
 	[EF_A_PRESSURE_PLATE] = effect_dump_a_pressure_plate,
 	[EF_ROTATION] = effect_dump_rotation,
+	[EF_STATS] = effect_dump_stats,
+	[EF_PH_LIQUID] = effect_dump_ph_liquid,
+	[EF_CONTAINER] = effect_dump_container,
+	[EF_CONTAINER_ITEM] = effect_dump_container_item,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -1947,7 +1962,7 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_PUNCH] = effect_scan_punch,
 	[EF_MATERIAL] = effect_scan_material,
 	[EF_SIZE_SCALE] = effect_scan_size_scale,
-	[EF_AIM] = NULL,
+	[EF_AIM] = effect_scan_aim,
 	[EF_ATTACK] = NULL,
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_scan_table_item,
@@ -1968,4 +1983,8 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_A_CIRCLE_MOVE] = NULL,
 	[EF_A_PRESSURE_PLATE] = effect_scan_a_pressure_plate,
 	[EF_ROTATION] = effect_scan_rotation,
+	[EF_STATS] = effect_scan_stats,
+	[EF_PH_LIQUID] = effect_scan_ph_liquid,
+	[EF_CONTAINER] = effect_scan_container,
+	[EF_CONTAINER_ITEM] = effect_scan_container_item,
 };

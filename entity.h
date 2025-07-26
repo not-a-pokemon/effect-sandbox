@@ -46,6 +46,10 @@ typedef enum effect_type {
 	EF_A_PRESSURE_PLATE,
 	EF_A_CIRCLE_MOVE,
 	EF_ROTATION,
+	EF_STATS,
+	EF_PH_LIQUID,
+	EF_CONTAINER,
+	EF_CONTAINER_ITEM,
 	EF_UNKNOWN = -1,
 } effect_type;
 
@@ -54,6 +58,10 @@ typedef enum rotation_type {
 	RT_STICK,
 	RT_TABLE,
 } rotation_type;
+
+typedef enum liquid_type {
+	LIQ_WATER,
+} liquid_type;
 
 struct entity_s;
 struct effect_s;

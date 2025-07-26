@@ -825,6 +825,14 @@ void setup_field(void) {
 			effect_prepend(new_ent, ef_rend);
 		}
 		{
+			effect_s *ef_stats = alloc_effect(EF_STATS);
+			effect_stats_data *d = (void*)ef_stats->data;
+			d->str = 64;
+			d->spd = 64;
+			d->dex = 64;
+			effect_prepend(new_ent, ef_stats);
+		}
+		{
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
@@ -1266,36 +1274,37 @@ int main(int argc, char **argv) {
 				}
 			} else if (evt.type == SDL_KEYDOWN) {
 				switch (evt.key.keysym.sym) {
+#define MOVE_DELAY 128
 					case SDLK_KP_6: {
-						trigger_move(control_ent, 1, 1, 0, 0);
+						trigger_move(control_ent, MOVE_DELAY, 1, 0, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_2: {
-						trigger_move(control_ent, 1, 0, 1, 0);
+						trigger_move(control_ent, MOVE_DELAY, 0, 1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_8: {
-						trigger_move(control_ent, 1, 0, -1, 0);
+						trigger_move(control_ent, MOVE_DELAY, 0, -1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_4: {
-						trigger_move(control_ent, 1, -1, 0, 0);
+						trigger_move(control_ent, MOVE_DELAY, -1, 0, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_7: {
-						trigger_move(control_ent, 1, -1, -1, 0);
+						trigger_move(control_ent, MOVE_DELAY, -1, -1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_9: {
-						trigger_move(control_ent, 1, 1, -1, 0);
+						trigger_move(control_ent, MOVE_DELAY, 1, -1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_3: {
-						trigger_move(control_ent, 1, 1, 1, 0);
+						trigger_move(control_ent, MOVE_DELAY, 1, 1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_KP_1: {
-						trigger_move(control_ent, 1, -1, 1, 0);
+						trigger_move(control_ent, MOVE_DELAY, -1, 1, 0);
 						trigger_done = 2;
 					} break;
 					case SDLK_w: {

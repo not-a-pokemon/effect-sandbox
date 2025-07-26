@@ -4,7 +4,14 @@ default: efsa
 CFLAGS+=-Wall -Wextra
 LDFLAGS+=-lSDL2 -lSDL2_ttf
 
-SRCS=$(wildcard *.c)
+SRCS=\
+	 main.c\
+	 entity.c\
+	 omalloc.c\
+	 rng.c
+
+OBJ=$(SRCS:.c=.o)
+
 depend: $(SRCS)
 	$(CC) -MM $(CFLAGS) $(SRCS) >depend
 include depend
@@ -15,9 +22,9 @@ util/structgen: util/structgen.c
 gen-effects.h gen-loaders.h: util/structgen effect-data.txt
 	./util/structgen .f gen-loaders.h .s gen-effects.h <effect-data.txt
 
-OBJ=main.o entity.o omalloc.o rng.o
 efsa: $(OBJ)
 	$(CC) $(LDFLAGS) $(OBJ) -o efsa
 
+.PHONY:
 clean:
 	rm -f $(OBJ) efsa

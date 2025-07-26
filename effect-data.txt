@@ -24,3 +24,18 @@ decl-s rotation 'T rotation_type type int rotation :
 decl-s a_pressure_plate int thresold :
 #/ decl-s m_grab ent-r eff ent-r ent :
 #/ decl-s m_drop 
+
+#/ NEW
+decl-s stats
+	int str
+	int dex
+	int spd :
+decl-s ph_liquid
+	int amount
+	'E liquid_type type :
+#/ container mask holds info about whether it can handle different types of objects (liquids, solids, grains)
+decl-s container
+	int cont_mask
+	int capacity :
+decl-s container_item
+	ent-r ent :
