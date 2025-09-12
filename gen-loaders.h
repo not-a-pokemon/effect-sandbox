@@ -259,20 +259,31 @@ void effect_dump_ph_liquid(effect_s *e, FILE *stream) {
 void effect_scan_container(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
 	effect_container_data *d = (void*)e->data;
-	fread(&d->cont_mask, sizeof(int), 1, stream);
+	fread(&d->cont_mask, sizeof(unsigned), 1, stream);
 	fread(&d->capacity, sizeof(int), 1, stream);
 }
 void effect_dump_container(effect_s *e, FILE *stream) {
 	effect_container_data *d = (void*)e->data;
-	fwrite(&d->cont_mask, sizeof(int), 1, stream);
+	fwrite(&d->cont_mask, sizeof(unsigned), 1, stream);
 	fwrite(&d->capacity, sizeof(int), 1, stream);
 }
 void effect_scan_container_item(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
 	effect_container_item_data *d = (void*)e->data;
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->item = NULL; else d->item = a_ent[t]; }
 }
 void effect_dump_container_item(effect_s *e, FILE *stream) {
 	effect_container_item_data *d = (void*)e->data;
-	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
+}
+void effect_scan_wet(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_wet_data *d = (void*)e->data;
+	fread(&d->type, sizeof(int), 1, stream);
+	fread(&d->amount, sizeof(int), 1, stream);
+}
+void effect_dump_wet(effect_s *e, FILE *stream) {
+	effect_wet_data *d = (void*)e->data;
+	fwrite(&d->type, sizeof(int), 1, stream);
+	fwrite(&d->amount, sizeof(int), 1, stream);
 }

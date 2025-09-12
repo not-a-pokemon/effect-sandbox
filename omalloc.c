@@ -10,7 +10,7 @@ static void *l_buf[O_BUF_S];
 static size_t l_buf_cur = 0;
 
 void *o_malloc(size_t s) {
-	void *t = malloc(s);
+	void *t = s > 0 ? malloc(s) : NULL;
 	for (size_t i = 0; i < O_BUF_S; i ++) {
 		if (o_buf[i] == t) {
 			o_buf[i] = NULL;
@@ -29,7 +29,7 @@ void *o_malloc(size_t s) {
 }
 
 void *o_malloc_m(size_t s, char *msg) {
-	void *t = malloc(s);
+	void *t = s > 0 ? malloc(s) : NULL;
 	for (size_t i = 0; i < O_BUF_S; i ++) {
 		if (o_buf[i] == t) {
 			o_buf[i] = NULL;
@@ -49,6 +49,8 @@ void *o_malloc_m(size_t s, char *msg) {
 
 
 void o_free(void *x) {
+	if (x == NULL)
+		return;
 	int found = 0;
 	for (size_t i = 0; i < O_BUF_S; i ++) {
 		if (l_buf[i] == x) {
@@ -82,6 +84,8 @@ void o_free(void *x) {
 }
 
 void o_free_m(void *x, char *s) {
+	if (x == NULL)
+		return;
 	int found = 0;
 	for (size_t i = 0; i < O_BUF_S; i ++) {
 		if (l_buf[i] == x) {

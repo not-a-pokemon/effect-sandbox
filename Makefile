@@ -1,8 +1,8 @@
-.PHONY:
+.PHONY: default
 default: efsa
 
 CFLAGS+=-Wall -Wextra
-LDFLAGS+=-lSDL2 -lSDL2_ttf
+LDFLAGS!=pkg-config --libs sdl2 SDL2_ttf
 
 SRCS=\
 	 main.c\
@@ -23,8 +23,8 @@ gen-effects.h gen-loaders.h: util/structgen effect-data.txt
 	./util/structgen .f gen-loaders.h .s gen-effects.h <effect-data.txt
 
 efsa: $(OBJ)
-	$(CC) $(LDFLAGS) $(OBJ) -o efsa
+	$(CC) $(OBJ) -o efsa $(LDFLAGS)
 
-.PHONY:
+.PHONY: clean
 clean:
 	rm -f $(OBJ) efsa

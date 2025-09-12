@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
 	while (!(get_r = m_get_token(inp, buf, 1024))) {
 		if (!strcmp("#/", buf)) {
 			int ch;
-			while ((ch = getchar()) != -1)
+			while ((ch = getc(inp)) != -1)
 				if (ch == '\n') break;
 		} else if (!strcmp("decl-s", buf)) {
 			if ((get_r = m_get_token(inp, st.name, 64))) {

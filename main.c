@@ -53,7 +53,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 	SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
 	for (int i = 0; i < cam->width; i ++) {
 		for (int j = 0; j < cam->height; j ++) {
-			SDL_Rect r = (SDL_Rect){.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+			SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 			SDL_RenderFillRect(rend, &r);
 		}
 	}
@@ -85,9 +85,10 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 					effect_s *ef = effect_by_type(te->effects, EF_RENDER);
 					if (ef != NULL) {
 						effect_render_data *rend_data = (void*)ef->data;
-						SDL_Rect r = (SDL_Rect){.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {rend_data->chr, '\0'};
-						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, (SDL_Color){.r = rend_data->r, .g = rend_data->g, .b = rend_data->b, .a = rend_data->a});
+						SDL_Color colo = {.r = rend_data->r, .g = rend_data->g, .b = rend_data->b, .a = rend_data->a};
+						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
 						SDL_RenderCopy(rend, tex, NULL, &r);
 						SDL_DestroyTexture(tex);
@@ -97,7 +98,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 					}
 					effect_s *fi = effect_by_type(te->effects, EF_FIRE);
 					if (fi != NULL) {
-						SDL_Rect r = (SDL_Rect){.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {'!', '\0'};
 						SDL_Color fire_color = {.r = 255, .g = 0, .b = 0, .a = 192};
 						if (cam->blink % 2) {
@@ -114,7 +115,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 				}
 			}
 			if (i == cam->cursor_x && j == cam->cursor_y) {
-				SDL_Rect r = (SDL_Rect){.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+				SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 				SDL_SetRenderDrawColor(rend, 128, 128, 0, 255);
 				SDL_RenderDrawRect(rend, &r);
 			}
@@ -165,16 +166,28 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	}
 	ef = effect_by_type(ent->effects, EF_FALLING);
 	if (ef != NULL) {
-		slc += snprintf(slc, 128 - (slc - sl), "falling");
+		slc += snprintf(slc, 128 - (slc - sl), "[falling");
 		int x, y, z;
 		if (entity_coords(ent, &x, &y, &z)) {
 			if (z < 0) {
 				slc += snprintf(slc, 128 - (slc - sl), " in void");
 			}
 		}
+		slc += snprintf(slc, 128 - (slc - sl), "]");
+	}
+	ef = effect_by_type(ent->effects, EF_BLOCK_MOVE);
+	if (ef != NULL) {
+		effect_block_move_data *d = (void*)ef->data;
+		slc += snprintf(slc, 128 - (slc - sl), "[moving %d %d]", d->x, d->y);
+	}
+	ef = effect_by_type(ent->effects, EF_STAIR_MOVE);
+	if (ef != NULL) {
+		effect_stair_move_data *d = (void*)ef->data;
+		slc += snprintf(slc, 128 - (slc - sl), "[stair %d]", d->dir);
 	}
 	if (sl[0] != '\0') {
-		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, sl, (SDL_Color){.r = 0, .g = 255, .b = 128});
+		SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, sl, colo);
 		SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
 		SDL_Rect target;
 		target.x = xb;
@@ -185,232 +198,6 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 		SDL_DestroyTexture(tex);
 		SDL_FreeSurface(surf);
 	}
-}
-
-int select_tile(SDL_Renderer *rend, camera_view_s *cam, int *x, int *y, int *z) {
-	int rx = *x;
-	int ry = *y;
-	int rz = *z;
-	SDL_Event evt;
-	while (1) {
-		cam->cursor_x = *x;
-		cam->cursor_y = *y;
-		cam->z = *z;
-		{
-			SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
-			SDL_RenderClear(rend);
-			render_camera(rend, cam);
-			/*
-			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, "[select tile]", (SDL_Color){.r = 255, .g = 0, .b = 0, .a = 0});
-			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-			int surf_w = surf->w;
-			int surf_h = surf->h;
-			SDL_FreeSurface(surf);
-			SDL_Rect rec = (SDL_Rect){.x = 100, .y = 100, .w = surf_w, .h = surf_h};
-			SDL_RenderCopy(rend, tex, NULL, &rec);
-			SDL_DestroyTexture(tex);
-			*/
-			SDL_RenderPresent(rend);
-		}
-		if (!SDL_WaitEvent(&evt)) {
-			break;
-		}
-		if (evt.type == SDL_KEYDOWN) {
-			switch (evt.key.keysym.sym) {
-			case SDLK_r: {
-				*x = rx;
-				*y = ry;
-				*z = rz;
-			} break;
-			case SDLK_KP_8: {
-				(*y) --;
-			} break;
-			case SDLK_KP_4: {
-				(*x) --;
-			} break;
-			case SDLK_KP_2: {
-				(*y) ++;
-			} break;
-			case SDLK_KP_6: {
-				(*x) ++;
-			} break;
-			case SDLK_j: {
-				(*z) --;
-			} break;
-			case SDLK_k: {
-				(*z) ++;
-			} break;
-			case SDLK_ESCAPE: {
-				cam->cursor_x = -1;
-				cam->cursor_y = -1;
-				return 0;
-			} break;
-			case SDLK_RETURN: {
-				cam->cursor_x = -1;
-				cam->cursor_y = -1;
-				(*x) += cam->x;
-				(*y) += cam->y;
-				return 1;
-			} break;
-			default: {
-			}
-			}
-		}
-	}
-	cam->cursor_x = -1;
-	cam->cursor_y = -1;
-	return 1;
-}
-
-int select_tile_entity(SDL_Renderer *rend, int x, int y, int z, entity_s **ent) {
-	SDL_Event evt;
-	entity_l_s *c_ent = NULL;
-	int cx = 0;
-	int cy = 0;
-	int cz = 0;
-	coord_normalize(&x, &cx);
-	coord_normalize(&y, &cy);
-	coord_normalize(&z, &cz);
-	sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
-	if (sec == NULL) {
-		return 0;
-	}
-	int ret = 0;
-	entity_l_s *el = sector_get_block_entities_indirect(sec, x, y, z);
-	if (el == NULL) {
-		ret = 0;
-		goto RET;
-	}
-	c_ent = el;
-	while (1) {
-		int screen_y = 0;
-		SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
-		SDL_RenderClear(rend);
-		entity_l_s *cur = el;
-		while (cur != NULL) {
-			entity_s *cur_e = cur->ent;
-			char data_cur[256];
-			memset(data_cur, 0, 256);
-			effect_s *ef_rend = effect_by_type(cur_e->effects, EF_RENDER);
-			effect_render_data *ef_rend_data = ef_rend != NULL ? (void*)ef_rend->data : NULL;
-			effect_s *ef_l_hand = effect_by_type(cur_e->effects, EF_LIMB_HAND);
-			if (ef_rend != NULL) {
-				snprintf(data_cur, 255, "%p (%c)", cur_e, ef_rend_data->chr);
-			} else if (ef_l_hand != NULL) {
-				snprintf(data_cur, 255, "%p hand", cur_e);
-			} else {
-				snprintf(data_cur, 255, "%p", cur_e);
-			}
-			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, data_cur, (SDL_Color){.r = 0, .g = 127 * (cur == c_ent ? 2 : 1), .b = 0, .a = 0});
-			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-			SDL_RenderCopy(rend, tex, NULL, &(SDL_Rect){.x = 0, .y = screen_y, .h = surf->h, .w = surf->w});
-			if (ef_rend != NULL) {
-				SDL_SetRenderDrawColor(rend, ef_rend_data->r, ef_rend_data->g, ef_rend_data->b, ef_rend_data->a);
-				SDL_RenderFillRect(rend, &(SDL_Rect){.x = surf->w, .y = screen_y, .h = surf->h, .w = surf->h});
-			}
-			screen_y += surf->h;
-			SDL_FreeSurface(surf);
-			SDL_DestroyTexture(tex);
-			cur = cur->next;
-		}
-		SDL_RenderPresent(rend);
-		if (!SDL_WaitEvent(&evt)) {
-			break;
-		}
-		if (evt.type == SDL_KEYDOWN) {
-			switch (evt.key.keysym.sym) {
-				case SDLK_KP_8: {
-					if (c_ent->prev != NULL) {
-						c_ent = c_ent->prev;
-					}
-				} break;
-				case SDLK_KP_2: {
-					if (c_ent->next != NULL) {
-						c_ent = c_ent->next;
-					}
-				} break;
-				case SDLK_RETURN: {
-					*ent = c_ent->ent;
-					ret = 1;
-					goto RET;
-				} break;
-				case SDLK_ESCAPE: {
-					ret = 0;
-					goto RET;
-				} break;
-				default: {
-				}
-			}
-		}
-	}
-RET:
-	entity_l_s_free(el);
-	return ret;
-}
-
-int select_input_string(SDL_Renderer *rend, char *buf, int n, const char *msg) {
-	int c = 0;
-	int edit_start;
-	int prev_end = 0;
-	memset(buf, 0, n);
-	while (1) {
-		SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
-		SDL_RenderClear(rend);
-		{
-			SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
-			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, msg, (SDL_Color){.r = 0, .g = 128, .b = 0});
-			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-			SDL_RenderFillRect(rend, &(SDL_Rect){.x = 0, .y = 0, .h = surf->h, .w = surf->w});
-			SDL_RenderCopy(rend, tex, NULL, &(SDL_Rect){.x = 0, .y = 0, .h = surf->h, .w = surf->w});
-			edit_start = surf->w;
-			SDL_FreeSurface(surf);
-			SDL_DestroyTexture(tex);
-		}
-		{
-			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, (SDL_Color){.r = 0, .g = 128, .b = 64});
-			if (surf != NULL) {
-				SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-				SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
-				if (prev_end < surf->w) {
-					prev_end = surf->w;
-				}
-				SDL_RenderFillRect(rend, &(SDL_Rect){.x = edit_start, .y = 0, .h = surf->h, .w = prev_end});
-				SDL_RenderCopy(rend, tex, NULL, &(SDL_Rect){.x = edit_start, .y = 0, .h = surf->h, .w = surf->w});
-				SDL_FreeSurface(surf);
-				SDL_DestroyTexture(tex);
-			}
-		}
-		SDL_RenderPresent(rend);
-		SDL_Event evt;
-		if (!SDL_WaitEvent(&evt)) {
-			break;
-		}
-		if (evt.type == SDL_KEYDOWN) {
-			switch (evt.key.keysym.sym) {
-				case SDLK_BACKSPACE: {
-					if (c != 0) {
-						buf[-- c] = '\0';
-					}
-				} break;
-				case SDLK_RETURN: {
-					return 1;
-				} break;
-				case SDLK_ESCAPE: {
-					buf[0] = '\0';
-					return 0;
-				} break;
-				default: {
-					char ch = evt.key.keysym.sym;
-					if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || (ch == '_' || ch == '!')) {
-						if (c + 1 < n) {
-							buf[c ++] = ch;
-						}
-					}
-				} break;
-			}
-		}
-	}
-	return 0;
 }
 
 void spawn_simple_floor(int x, int y, int z) {
@@ -1134,6 +921,73 @@ void setup_field(void) {
 		g_entities = new_ent;
 		attach_generic_entity(new_ent);
 	}
+	{
+		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		{
+			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
+			effect_ph_item_data *d = (void*)ef_ph->data;
+			d->x = 3;
+			d->y = 0;
+			d->z = 0;
+			d->weight = 8;
+			d->parent = NULL;
+			effect_prepend(new_ent, ef_ph);
+		}
+		{
+			effect_s *ef_ph = alloc_effect(EF_PH_LIQUID);
+			effect_ph_liquid_data *d = (void*)ef_ph->data;
+			d->amount = 200;
+			d->type = LIQ_WATER;
+			effect_prepend(new_ent, ef_ph);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_RENDER);
+			new_eff->type = EF_RENDER;
+			effect_render_data *d = (void*)new_eff->data;
+			d->r = 60;
+			d->b = 200;
+			d->g = 150;
+			d->a = 128;
+			d->chr = '~';
+			effect_prepend(new_ent, new_eff);
+		}
+		entity_prepend(g_entities, new_ent);
+		g_entities = new_ent;
+		attach_generic_entity(new_ent);
+	}
+	{
+		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		{
+			effect_s *ph_item = alloc_effect(EF_PH_ITEM);
+			effect_ph_item_data *d = (void*)ph_item->data;
+			d->x = 3;
+			d->y = 3;
+			d->z = 0;
+			d->parent = NULL;
+			d->weight = 3;
+			effect_prepend(new_ent, ph_item);
+		}
+		{
+			effect_s *rend = alloc_effect(EF_RENDER);
+			effect_render_data *d = (void*)rend->data;
+			d->r = 60;
+			d->b = 200;
+			d->g = 150;
+			d->a = 128;
+			d->chr = 'c';
+			effect_prepend(new_ent, rend);
+		}
+		{
+			effect_s *cont = alloc_effect(EF_CONTAINER);
+			effect_container_data *d = (void*)cont->data;
+			d->capacity = 10;
+			d->cont_mask = 0;
+			effect_prepend(new_ent, cont);
+		}
+		entity_prepend(g_entities, new_ent);
+		g_entities = new_ent;
+		attach_generic_entity(new_ent);
+	}
 	for (int i = 0; i < 5; i ++) {
 		if (i == 2) {
 			spawn_simple_door(i, 5, 0);
@@ -1163,10 +1017,600 @@ void setup_field(void) {
 	spawn_circle_mover(3, 3, 1);
 }
 
+#define INPUT_ARG_MAX 16
+
+typedef enum cmap_arg_t_type {
+	CMAP_ARG_ENTITY,
+	CMAP_ARG_TILE,
+	CMAP_ARG_EFFECT,
+	CMAP_ARG_NONE,
+} cmap_arg_t_type;
+
+typedef struct cmap_arg_t {
+	void *data;
+	cmap_arg_t_type type;
+} cmap_arg_t;
+
+typedef struct cmap_params_t {
+	entity_s *control_ent;
+	cmap_arg_t args[INPUT_ARG_MAX];
+	int nargs;
+	int key;
+	int c_id;
+} cmap_params_t;
+
+typedef struct cmap_t {
+	int key;
+	const char *s;
+	void (*callback)(cmap_params_t*);
+} cmap_t;
+
+cmap_params_t gu_params;
+
+void params_clear(void) {
+	gu_params.nargs = 0;
+}
+
+void params_push_entity(entity_s *s) {
+	if (gu_params.nargs == INPUT_ARG_MAX) {
+		fprintf(stderr, "[WARN] Exceeded INPUT_ARG_MAX\n");
+		return;
+	}
+	gu_params.args[gu_params.nargs].type = CMAP_ARG_ENTITY;
+	gu_params.args[gu_params.nargs].data = s;
+	gu_params.nargs++;
+}
+
+void params_push_effect(effect_s *s) {
+	if (gu_params.nargs == INPUT_ARG_MAX) {
+		fprintf(stderr, "[WARN] Exceeded INPUT_ARG_MAX\n");
+		return;
+	}
+	gu_params.args[gu_params.nargs].type = CMAP_ARG_EFFECT;
+	gu_params.args[gu_params.nargs].data = s;
+	gu_params.nargs++;
+}
+
+void cmap_wait(cmap_params_t *p) {
+	(void) p;
+}
+
+void cmap_go_up(cmap_params_t *p) {
+	trigger_go_up(p->control_ent, 1);
+}
+
+void cmap_go_down(cmap_params_t *p) {
+	trigger_go_down(p->control_ent, 1);
+}
+
+int key_to_direction(int key, int *x, int *y) {
+	switch (key) {
+	case SDLK_KP_1: {
+		*x = -1;
+		*y = 1;
+	} break;
+	case SDLK_KP_2: {
+		*x = 0;
+		*y = 1;
+	} break;
+	case SDLK_KP_3: {
+		*x = 1;
+		*y = 1;
+	} break;
+	case SDLK_KP_4: {
+		*x = -1;
+		*y = 0;
+	} break;
+	case SDLK_KP_6: {
+		*x = 1;
+		*y = 0;
+	} break;
+	case SDLK_KP_7: {
+		*x = -1;
+		*y = -1;
+	} break;
+	case SDLK_KP_8: {
+		*x = 0;
+		*y = -1;
+	} break;
+	case SDLK_KP_9: {
+		*x = 1;
+		*y = -1;
+	} break;
+	default: {
+		return 0;
+	}
+	}
+	return 1;
+}
+
+void cmap_go(cmap_params_t *p) {
+	int x, y;
+	if (key_to_direction(p->key, &x, &y))
+		trigger_move(p->control_ent, x, y, 0);
+}
+
+void cmap_put(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_put\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong argument to cmap_put\n");
+		return;
+	}
+	trigger_put(p->control_ent, p->args[0].data, p->args[1].data);
+}
+
+void cmap_drop(cmap_params_t *p) {
+	if (p->nargs != 1) {
+		fprintf(stderr, "Wrong number of arguments to cmap_drop\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT) {
+		fprintf(stderr, "Wrong argument to cmap_drop\n");
+		return;
+	}
+	trigger_drop(p->control_ent, p->args[0].data);
+}
+
+void cmap_grab(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_grab\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong argument to cmap_grab\n");
+		return;
+	}
+	trigger_grab(p->control_ent, p->args[0].data, p->args[1].data);
+}
+
+void cmap_open_door(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_open_door, found %d\n", p->nargs);
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_open_door\n");
+		return;
+	}
+	trigger_touch(p->control_ent, p->args[0].data, p->args[1].data);
+}
+
+void cmap_throw(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_throw\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_throw\n");
+		return;
+	}
+	/* TODO */
+}
+
+void cmap_attack(cmap_params_t *p) {
+	if (p->nargs != 1) {
+		fprintf(stderr, "Wrong number of arguments to cmap_attack\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_attack\n");
+		return;
+	}
+	trigger_attack(p->control_ent, p->args[0].data);
+}
+
+const cmap_t command_maps[] = {
+	(cmap_t){'w', NULL, cmap_wait},
+	(cmap_t){'<', NULL, cmap_go_up},
+	(cmap_t){'>', NULL, cmap_go_down},
+	(cmap_t){SDLK_KP_1, NULL, cmap_go},
+	(cmap_t){SDLK_KP_2, NULL, cmap_go},
+	(cmap_t){SDLK_KP_3, NULL, cmap_go},
+	(cmap_t){SDLK_KP_4, NULL, cmap_go},
+	(cmap_t){SDLK_KP_6, NULL, cmap_go},
+	(cmap_t){SDLK_KP_7, NULL, cmap_go},
+	(cmap_t){SDLK_KP_8, NULL, cmap_go},
+	(cmap_t){SDLK_KP_9, NULL, cmap_go},
+	(cmap_t){'p', "He(Put where?)", cmap_put},
+	(cmap_t){'d', "H", cmap_drop},
+	(cmap_t){'g', "He(Grab what?)", cmap_grab},
+	(cmap_t){'o', "He(Open door?)", cmap_open_door},
+	(cmap_t){'t', "He(Into what?)", cmap_throw},
+	(cmap_t){'a', "e(Attack what?)", cmap_attack},
+};
+const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
+
+typedef enum inputw_type {
+	INPUTW_ORIGIN,
+	INPUTW_TILE,
+	INPUTW_ENTITY,
+	INPUTW_DIRECTION,
+	INPUTW_LIMB,
+	INPUTW_LIMB_DEFAULT,
+} inputw_type;
+
+typedef struct inputw_tile_s {
+	int x;
+	int y;
+	int z;
+} inputw_tile_s;
+
+typedef struct inputw_entity_s {
+	int x;
+	int y;
+	int z;
+	entity_l_s *cur_list;
+	entity_l_s *cur_sel;
+} inputw_entity_s;
+
+#define INPUTW_DATA_SIZE 24
+typedef struct inputw {
+	inputw_type type;
+	char data[INPUTW_DATA_SIZE];
+	void *data1;
+	union {
+		inputw_tile_s u_tile;
+		inputw_entity_s u_entity;
+	} data_u;
+} inputw;
+
+#define INPUTW_MAXNR 16
+inputw inputws[INPUTW_MAXNR];
+int inputw_n = 0;
+inputw inputw_queue[INPUTW_MAXNR];
+int inputw_queue_n = 0;
+
+void input_queue_flush(void) {
+	int exc = 0;
+	while (inputw_queue_n > 0) {
+		inputw_queue_n--;
+		if (inputw_n < INPUTW_MAXNR) {
+			memcpy(&inputws[inputw_n], &inputw_queue[inputw_queue_n], sizeof(inputw));
+			inputw_n++;
+		} else {
+			exc = 1;
+		}
+	}
+	if (exc) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+	}
+}
+
+void input_queue_entity_select(entity_s *control_ent, const char *msg) {
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_ENTITY;
+	int x = 0, y = 0, z = 0;
+	if (entity_coords(control_ent, &x, &y, &z)) {
+		inputw_entity_s *e = &inputw_queue[inputw_queue_n].data_u.u_entity;
+		e->x = x;
+		e->y = y;
+		e->z = z;
+		e->cur_sel = NULL;
+	}
+	strncpy(inputw_queue[inputw_queue_n].data, msg, INPUTW_DATA_SIZE);
+	inputw_queue_n++;
+}
+
+void input_queue_limb_select(entity_s *control_ent, const char *msg) {
+	(void)control_ent;
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_LIMB;
+	strncpy(inputw_queue[inputw_queue_n].data, msg, INPUTW_DATA_SIZE);
+	inputw_queue_n++;
+}
+
+void input_queue_limb_default(entity_s *control_ent) {
+	(void)control_ent;
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_LIMB_DEFAULT;
+	inputw_queue_n++;
+}
+
+void inputw_clear(void) {
+	inputw_n = 0;
+	/* TODO inputw clear already stored args */
+}
+
+int command_arg_e(entity_s *control_ent, const char *s) {
+	char msg_buf[INPUTW_DATA_SIZE];
+	int msg_buf_n = 0, nr = 0;
+	if (s[nr] == '(') {
+		nr++;
+		while (s[nr] != '\0' && s[nr] != ')') {
+			if (msg_buf_n < INPUTW_DATA_SIZE - 1)
+				msg_buf[msg_buf_n++] = s[nr];
+			nr++;
+		}
+		if (s[nr] == ')')
+			nr++;
+	}
+	msg_buf[msg_buf_n] = '\0';
+	printf("arg e message (%s)\n", msg_buf);
+	input_queue_entity_select(control_ent, msg_buf);
+	return nr;
+}
+
+int command_arg_h(entity_s *control_ent, const char *s) {
+	char msg_buf[INPUTW_DATA_SIZE];
+	int msg_buf_n = 0, nr = 0;
+	if (s[nr] == '(') {
+		nr++;
+		while (s[nr] != '\0' && s[nr] != ')') {
+			if (msg_buf_n < INPUTW_DATA_SIZE - 1)
+				msg_buf[msg_buf_n++] = s[nr];
+			nr++;
+		}
+		if (s[nr] == ')')
+			nr++;
+	}
+	msg_buf[msg_buf_n] = '\0';
+	printf("arg h message (%s)\n", msg_buf);
+	input_queue_limb_select(control_ent, msg_buf);
+	return nr;
+}
+
+int command_arg_h_big(entity_s *control_ent, const char *s) {
+	(void)control_ent;
+	(void)s;
+	input_queue_limb_default(control_ent);
+	return 0;
+}
+
+void cmap_clear_args(void) {
+	gu_params.nargs = 0;
+}
+
+void command_map_exec(entity_s *control_ent, int n) {
+	const char *s = command_maps[n].s;
+	gu_params.control_ent = control_ent;
+	gu_params.c_id = n;
+	cmap_clear_args();
+	if (s == NULL) {
+		gu_params.key = command_maps[n].key;
+		command_maps[n].callback(&gu_params);
+		return;
+	}
+	int t = 0;
+	while (s[t] != '\0') {
+		switch (s[t]) {
+		case 'e': {
+			t += 1 + command_arg_e(control_ent, s+t+1);
+		} break;
+		case 'h': {
+			t += 1 + command_arg_h(control_ent, s+t+1);
+		} break;
+		case 'H': {
+			t += 1 + command_arg_h_big(control_ent, s+t+1);
+		} break;
+		default: {
+			fprintf(stderr, "Unrecognised command char '%c'\n", s[t]);
+			return;
+		}
+		}
+	}
+	input_queue_flush();
+}
+
+int inputw_tile_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_tile_key\n");
+		return 0;
+	}
+	inputw *l = &inputws[inputw_n-1];
+	inputw_tile_s *t = &l->data_u.u_tile;
+	int x, y;
+	if (key_to_direction(sym, &x, &y)) {
+		t->x += x;
+		t->y += y;
+		return 1;
+	}
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return 1;
+	}
+	return 0;
+}
+
+int inputw_entity_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_entity_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_ENTITY) {
+		fprintf(stderr, "Input layer isn't entity\n");
+		return 0;
+	}
+	inputw_entity_s *e = &inputws[inputw_n - 1].data_u.u_entity;
+	int x, y;
+	if (key_to_direction(sym, &x, &y)) {
+		e->x += x;
+		e->y += y;
+		int x = e->x, y = e->y, z = e->z, cx = 0, cy = 0, cz = 0;
+		coord_normalize(&x, &cx);
+		coord_normalize(&y, &cy);
+		coord_normalize(&z, &cz);
+		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
+		e->cur_list = sector_get_block_entities(sec, x, y, z);
+		e->cur_sel = e->cur_list;
+		return 1;
+	}
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return 1;
+	}
+	if (sym == SDLK_DOWN) {
+		if (e->cur_sel != NULL && e->cur_sel->next != NULL)
+			e->cur_sel = e->cur_sel->next;
+		return 1;
+	}
+	if (sym == SDLK_UP) {
+		if (e->cur_sel != NULL && e->cur_sel->prev != NULL)
+			e->cur_sel = e->cur_sel->prev;
+		return 1;
+	}
+	if (sym == SDLK_RETURN) {
+		if (e->cur_sel != NULL) {
+			params_push_entity(e->cur_sel->ent);
+			return 3;
+		}
+		return 0;
+	}
+	return 0;
+}
+
+int inputw_limb_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_limb_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_LIMB) {
+		fprintf(stderr, "Input layer isn't limb\n");
+		return 0;
+	}
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return 1;
+	}
+	return 0;
+}
+
+int inputw_limb_default_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_limb_default_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_LIMB_DEFAULT) {
+		fprintf(stderr, "Input layer isn't limb_default\n");
+		return 0;
+	}
+	effect_s *slot = effect_by_type(gu_params.control_ent->effects, EF_LIMB_SLOT);
+	params_push_effect(slot);
+	return 3;
+}
+
+void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
+	switch (inputw_n == 0 ? INPUTW_ORIGIN : inputws[inputw_n - 1].type) {
+	case INPUTW_ORIGIN: {
+		cam->cursor_x = -1;
+		cam->cursor_y = -1;
+	} break;
+	case INPUTW_TILE: {
+	} break;
+	case INPUTW_ENTITY: {
+		inputw_entity_s *e = &inputws[inputw_n - 1].data_u.u_entity;
+		cam->x = e->x - 8;
+		cam->y = e->y - 8;
+		cam->cursor_x = e->x - cam->x;
+		cam->cursor_y = e->y - cam->y;
+		cam->z = e->z;
+	} break;
+	default: {
+	}
+	}
+}
+
+void render_list_layers(SDL_Renderer *rend, int x, int y) {
+	int i, cy = y;
+	char buf[32];
+	for (i = 0; i < inputw_n; i++) {
+		snprintf(
+			buf, 32, "%s",
+			inputws[i].type == INPUTW_ORIGIN ? "origin" :
+			inputws[i].type == INPUTW_TILE ? "tile" :
+			inputws[i].type == INPUTW_ENTITY ? "entity" :
+			inputws[i].type == INPUTW_LIMB ? "limb" :
+			inputws[i].type == INPUTW_LIMB_DEFAULT ? "limb_default" :
+			"*"
+		);
+		{
+			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+			SDL_Rect target;
+			target.x = x;
+			target.y = cy;
+			target.w = surf->w;
+			target.h = surf->h;
+			SDL_RenderCopy(rend, tex, NULL, &target);
+			SDL_DestroyTexture(tex);
+			SDL_FreeSurface(surf);
+		}
+		cy += gr_rend_char_height;
+	}
+}
+
+void render_layer_specific(SDL_Renderer *rend, int x, int y) {
+	char buf[32];
+	if (inputw_n == 0)
+		return;
+
+	switch (inputws[inputw_n - 1].type) {
+	case INPUTW_TILE: {
+	} break;
+	case INPUTW_ENTITY: {
+		char rend_char = '\0';
+		{
+			entity_l_s *cur_sel = inputws[inputw_n - 1].data_u.u_entity.cur_sel;
+			entity_s *cur_ent = cur_sel == NULL ? NULL : cur_sel->ent;
+			if (cur_ent != NULL) {
+				effect_s *rend = effect_by_type(cur_ent->effects, EF_RENDER);
+				if (rend != NULL) {
+					effect_render_data *d = (void*)rend->data;
+					rend_char = d->chr;
+				}
+			}
+		}
+		snprintf(buf, 32, "%p %c", inputws[inputw_n - 1].data_u.u_entity.cur_sel, rend_char);
+		SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+		SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+		SDL_Rect target;
+		target.x = x;
+		target.y = y;
+		target.w = surf->w;
+		target.h = surf->h;
+		SDL_RenderCopy(rend, tex, NULL, &target);
+		SDL_DestroyTexture(tex);
+		SDL_FreeSurface(surf);
+	} break;
+	}
+}
+
+void inputw_layer_enter() {
+	if (inputw_n == 0)
+		return;
+	switch (inputws[inputw_n - 1].type) {
+	case INPUTW_ENTITY: {
+		inputw_entity_s *e = &inputws[inputw_n - 1].data_u.u_entity;
+		int x = e->x, y = e->y, z = e->z, cx = 0, cy = 0, cz = 0;
+		coord_normalize(&x, &cx);
+		coord_normalize(&y, &cy);
+		coord_normalize(&z, &cz);
+		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
+		e->cur_list = sector_get_block_entities(sec, x, y, z);
+		e->cur_sel = e->cur_list;
+	} break;
+	default: {
+	}
+	}
+}
+
 int main(int argc, char **argv) {
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
-	SDL_Window *win = SDL_CreateWindow("effect-sandbox", 0, 0, 500, 500, SDL_WINDOW_RESIZABLE);
+	SDL_Window *win = SDL_CreateWindow("effect-sandbox", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 700, 700, SDL_WINDOW_RESIZABLE);
 	SDL_Renderer *rend = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
 	SDL_ShowWindow(win);
 	SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
@@ -1243,6 +1687,11 @@ int main(int argc, char **argv) {
 	uint64_t last_blink = 0;
 	int need_redraw = 1;
 
+	if (control_ent == NULL) {
+		fprintf(stderr, "No controlling entity, quit\n");
+		running = 0;
+	}
+
 	while (running) {
 		if (SDL_GetTicks() > last_blink + 500) {
 			last_blink = SDL_GetTicks();
@@ -1260,10 +1709,15 @@ int main(int argc, char **argv) {
 			}
 			SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
 			SDL_RenderClear(rend);
+			render_layer_adjust(&cam, control_ent);
 			render_camera(rend, &cam);
 			render_status(rend, control_ent, 0, cam.height * gr_rend_char_height);
+			render_list_layers(rend, cam.width * gr_rend_char_width, 0);
+			render_layer_specific(rend, cam.width * gr_rend_char_width, inputw_n * gr_rend_char_height);
 			SDL_RenderPresent(rend);
 			need_redraw = 0;
+		} else {
+			SDL_Delay(40);
 		}
 		SDL_Event evt;
 		int trigger_done = 0;
@@ -1273,248 +1727,57 @@ int main(int argc, char **argv) {
 					need_redraw = 1;
 				}
 			} else if (evt.type == SDL_KEYDOWN) {
-				switch (evt.key.keysym.sym) {
-#define MOVE_DELAY 128
-					case SDLK_KP_6: {
-						trigger_move(control_ent, MOVE_DELAY, 1, 0, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_2: {
-						trigger_move(control_ent, MOVE_DELAY, 0, 1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_8: {
-						trigger_move(control_ent, MOVE_DELAY, 0, -1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_4: {
-						trigger_move(control_ent, MOVE_DELAY, -1, 0, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_7: {
-						trigger_move(control_ent, MOVE_DELAY, -1, -1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_9: {
-						trigger_move(control_ent, MOVE_DELAY, 1, -1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_3: {
-						trigger_move(control_ent, MOVE_DELAY, 1, 1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_KP_1: {
-						trigger_move(control_ent, MOVE_DELAY, -1, 1, 0);
-						trigger_done = 2;
-					} break;
-					case SDLK_w: {
-						trigger_done = 1;
-					} break;
-					case SDLK_h: {
-						if (evt.key.keysym.mod & KMOD_SHIFT) {
-							int sel_x = 8;
-							int sel_y = 8;
-							int sel_z = 0;
-							entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-							sel_x = 8;
-							sel_y = 8;
-							entity_s *sel_ent = NULL;
-							if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-								if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-									assert(sel_ent != NULL);
-									trigger_grab(control_ent, effect_by_type(control_ent->effects, EF_LIMB_SLOT), sel_ent);
-									trigger_done = 1;
-								}
+				SDL_Keycode sym = evt.key.keysym.sym;
+				if (evt.key.keysym.mod & KMOD_SHIFT) {
+					if (sym == ',') sym = '<';
+					else if (sym == '.') sym = '>';
+				}
+				if (sym >= 33 && sym <= 126) {
+					printf("'%c' is a printable symbol\n", sym);
+				} else {
+					printf("'%d' is NOT a printable symbol\n", sym);
+				}
+				if (inputw_n == 0) {
+					/* TODO check if it's reaction time for payer */
+					for (int i = 0; i < n_command_maps; i++) {
+						if (command_maps[i].key == sym) {
+							command_map_exec(control_ent, i);
+							inputw_layer_enter();
+							if (inputw_n == 0) {
+								trigger_done = 1;
+							} else {
+								need_redraw = 1;
 							}
-						} else {
-							trigger_drop(control_ent, effect_by_type(control_ent->effects, EF_LIMB_SLOT));
+							break;
+						}
+					}
+				} else {
+					int mask = 0;
+					switch (inputws[inputw_n - 1].type) {
+					case INPUTW_TILE: {
+						mask = inputw_tile_key(sym);
+					} break;
+					case INPUTW_ENTITY: {
+						mask = inputw_entity_key(sym);
+					} break;
+					case INPUTW_LIMB: {
+						mask = inputw_limb_key(sym);
+					} break;
+					case INPUTW_LIMB_DEFAULT: {
+						mask = inputw_limb_default_key(sym);
+					} break;
+					}
+					if (mask & 1)
+						need_redraw = 1;
+					if (mask & 2) {
+						fprintf(stderr, "MASK & 2\n");
+						inputw_n--;
+						inputw_layer_enter();
+						if (inputw_n == 0) {
+							command_maps[gu_params.c_id].callback(&gu_params);
 							trigger_done = 1;
 						}
-					} break;
-					case SDLK_g: {
-						int sel_x = 8;
-						int sel_y = 8;
-						int sel_z = 0;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						sel_x = 8;
-						sel_y = 8;
-						entity_s *sel_ent = NULL;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-								assert(sel_ent != NULL);
-								trigger_put(
-									control_ent,
-									effect_by_type(control_ent->effects, EF_LIMB_SLOT),
-									sel_ent
-								);
-								trigger_done = 1;
-							}
-						}
-					} break;
-					case SDLK_t: {
-						int sel_x;
-						int sel_y;
-						int sel_z;
-						int ent_x;
-						int ent_y;
-						int ent_z;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						ent_x = sel_x;
-						ent_y = sel_y;
-						ent_z = sel_z;
-						sel_x = 8;
-						sel_y = 8;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							sel_x -= ent_x;
-							sel_y -= ent_y;
-							sel_z -= ent_z;
-							if (sel_x != 0 || sel_y != 0 || sel_z != 0) {
-								int rel_x = 0;
-								int rel_y = 0;
-								int rel_z = 0;
-								int sgcd = gcd(gcd(abs(sel_x), abs(sel_y)), abs(sel_z));
-								sel_x /= sgcd;
-								sel_y /= sgcd;
-								sel_z /= sgcd;
-								while (abs(rel_x + sel_x) <= 256 && abs(rel_y + sel_y) <= 256 && abs(rel_z + sel_z) <= 256) {
-									rel_x += sel_x;
-									rel_y += sel_y;
-									rel_z += sel_z;
-								}
-								char buf[16];
-								if (select_input_string(rend, buf, 16, "pow:")) {
-									int power = strtoll(buf, NULL, 10);
-									trigger_throw(control_ent, effect_by_type(control_ent->effects, EF_LIMB_SLOT), rel_x, rel_y, rel_z, power);
-									trigger_done = 1;
-								}
-							}
-						}
-					} break;
-					case SDLK_a: {
-						int sel_x;
-						int sel_y;
-						int sel_z;
-						int ent_x;
-						int ent_y;
-						int ent_z;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						ent_x = sel_x;
-						ent_y = sel_y;
-						ent_z = sel_z;
-						sel_x = 8;
-						sel_y = 8;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							sel_x -= ent_x;
-							sel_y -= ent_y;
-							sel_z -= ent_z;
-							if (sel_x != 0 || sel_y != 0 || sel_z != 0) {
-								entity_s *aim_ent;
-								if (!select_tile_entity(rend, sel_x + ent_x, sel_y + ent_y, sel_z + ent_z, &aim_ent)) {
-									aim_ent = NULL;
-								}
-								int rel_x = 0;
-								int rel_y = 0;
-								int rel_z = 0;
-								int sgcd = gcd(gcd(abs(sel_x), abs(sel_y)), abs(sel_z));
-								sel_x /= sgcd;
-								sel_y /= sgcd;
-								sel_z /= sgcd;
-								while (abs(rel_x + sel_x) <= 256 && abs(rel_y + sel_y) <= 256 && abs(rel_z + sel_z) <= 256) {
-									rel_x += sel_x;
-									rel_y += sel_y;
-									rel_z += sel_z;
-								}
-								trigger_aim(control_ent, effect_by_type(control_ent->effects, EF_LIMB_SLOT), rel_x, rel_y, rel_z, aim_ent);
-								trigger_done = 1;
-							}
-						}
-					} break;
-					case SDLK_u: {
-						if (evt.key.keysym.mod & KMOD_SHIFT) {
-							effect_s *ef_hand = effect_by_type(control_ent->effects, EF_LIMB_SLOT);
-							if (ef_hand != NULL) {
-								effect_limb_slot_data *h_d = (void*)ef_hand->data;
-								effect_s *ef_lhand = effect_by_type(h_d->item->effects, EF_LIMB_HAND);
-								if (ef_lhand != NULL) {
-									effect_limb_hand_data *lh_d = (void*)ef_lhand->data;
-									if (lh_d->item != NULL) {
-										trigger_touch(
-											control_ent,
-											ef_hand,
-											lh_d->item
-										);
-										trigger_done = 1;
-									}
-								}
-							}
-						} else {
-							int sel_x;
-							int sel_y;
-							int sel_z;
-							entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-							sel_x = 8;
-							sel_y = 8;
-							entity_s *sel_ent = NULL;
-							if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-								if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-									assert(sel_ent != NULL);
-									trigger_touch(
-										control_ent,
-										/* TODO add limb selection menu*/
-										effect_by_type(control_ent->effects, EF_LIMB_SLOT),
-										sel_ent
-									);
-									trigger_done = 1;
-								}
-							}
-						}
-					} break;
-					case SDLK_d: {
-						int sel_x = 8;
-						int sel_y = 8;
-						int sel_z = 0;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						sel_x = 8;
-						sel_y = 8;
-						entity_s *sel_ent = NULL;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-								assert(sel_ent != NULL);
-								trigger_attack(
-									control_ent,
-									sel_ent
-								);
-								trigger_done = 1;
-							}
-						}
-					} break;
-					case SDLK_r: {
-						int sel_x = 8;
-						int sel_y = 8;
-						int sel_z = 0;
-						entity_coords(control_ent, &sel_x, &sel_y, &sel_z);
-						sel_x = 8;
-						sel_y = 8;
-						entity_s *sel_ent = NULL;
-						if (select_tile(rend, &cam, &sel_x, &sel_y, &sel_z)) {
-							if (select_tile_entity(rend, sel_x, sel_y, sel_z, &sel_ent)) {
-								assert(sel_ent != NULL);
-								effect_s *new_ef = alloc_effect(EF_FIRE);
-								new_ef->type = EF_FIRE;
-								effect_prepend(sel_ent, new_ef);
-								trigger_done = 1;
-							}
-						}
-					} break;
-					case SDLK_k: {
-						trigger_go_up(control_ent, 1);
-						trigger_done = 2;
-					} break;
-					case SDLK_j: {
-						trigger_go_down(control_ent, 1);
-						trigger_done = 2;
-					} break;
-					default: {}
+					}
 				}
 			}
 			if (evt.type == SDL_QUIT) {
@@ -1538,6 +1801,7 @@ int main(int argc, char **argv) {
 			perror("Failed to open save file: ");
 		}
 	}
+	o_free(g_dice);
 	TTF_CloseFont(gr_font);
 	SDL_DestroyRenderer(rend);
 	SDL_DestroyWindow(win);

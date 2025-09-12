@@ -7,6 +7,8 @@
 #define G_SECTOR_SIZE 8
 #define G_TRACER_RESOLUTION 256
 #define G_TRACER_GRAVITY 128
+#define G_MOVE_START_DELAY 128
+#define G_PUDDLE_MAX 64
 
 typedef enum effect_type {
 	EF_B_NONEXISTENT,
@@ -50,6 +52,7 @@ typedef enum effect_type {
 	EF_PH_LIQUID,
 	EF_CONTAINER,
 	EF_CONTAINER_ITEM,
+	EF_WET,
 	EF_UNKNOWN = -1,
 } effect_type;
 
@@ -190,8 +193,6 @@ sector_s *sector_get_sector(sectors_s *s, int x, int y, int z);
 sector_s *sector_create_sector(sectors_s *s, int x, int y, int z);
 sector_s *sector_use_sector(sectors_s *s, int x, int y, int z);
 
-// Need to implement: Block physics, Item physics
-
 // In case block_status becomes hash table or something
 entity_l_s *sector_get_block_entities(sector_s *s, int x, int y, int z);
 int sector_get_block_floor_up(sector_s *s, int x, int y, int z);
@@ -238,7 +239,7 @@ void hand_put(entity_s *ent, effect_s *hand, entity_s *w);
 void hand_throw(entity_s *ent, effect_s *hand, int x, int y, int z, int speed);
 void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 
-void trigger_move(entity_s *s, int start_delay, int x, int y, int z);
+void trigger_move(entity_s *s, int x, int y, int z);
 // Go down like staircase
 void trigger_go_up(entity_s *s, int start_delay);
 void trigger_go_down(entity_s *s, int start_delay);

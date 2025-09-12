@@ -29,8 +29,6 @@ void free_effect(effect_s *s) {
 	o_free(s);
 }
 
-void coord_normalize(int*, int*);
-
 void coord_normalize(int *x, int *cx) {
 	int t = (*x) / G_SECTOR_SIZE;
 	(*cx) += t;
@@ -210,35 +208,24 @@ void apply_triggers(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_A_CIRCLE_MOVE);
 		if (ef != NULL) {
 			if (effect_by_type(s->effects, EF_BLOCK_MOVE) == NULL) {
-				effect_s *add = alloc_effect(EF_BLOCK_MOVE);
-				add->type = EF_BLOCK_MOVE;
-				effect_block_move_data *data = (void*)add->data;
 				int x, y, z;
 				entity_coords(s, &x, &y, &z);
-				data->delay = 128;
-				data->x = 0;
-				data->y = 0;
+				int wx = 0, wy = 0;
 				switch (((x & 1) << 1) | (y & 1)) {
 					case 0: {
-						data->x = 1;
+						wx = 1;
 					} break;
 					case 2: {
-						data->y = -1;
+						wy = -1;
 					} break;
 					case 3: {
-						data->x = -1;
+						wx = -1;
 					} break;
 					case 1: {
-						data->y = 1;
+						wy = 1;
 					} break;
 				}
-				data->z = 0;
-				add->prev = NULL;
-				add->next = s->effects;
-				if (s->effects != NULL) {
-					s->effects->prev = add;
-				}
-				s->effects = add;
+				trigger_move(s, wx, wy, 0);
 			}
 		}
 	}
@@ -248,12 +235,19 @@ void apply_instants(entity_s *s) {
 	{
 		effect_s *ef = effect_by_type(s->effects, EF_FIRE);
 		if (ef != NULL) {
-			effect_s *new_ef = alloc_effect(EF_S_DMG);
-			new_ef->type = EF_S_DMG;
-			effect_s_dmg_data *d = (void*)new_ef->data;
-			d->type = DMGT_FIRE;
-			d->val = 1;
-			effect_prepend(s, new_ef);
+			effect_s *mat = effect_by_type(s->effects, EF_MATERIAL);
+			effect_material_data *mat_d = mat == NULL ? NULL : (void*)mat->data;
+			if (mat == NULL || (mat_d->type != MAT_WOOD && mat_d->type != MAT_PLANT)) {
+				effect_unlink(s, ef);
+				free_effect(ef);
+			} else {
+				effect_s *new_ef = alloc_effect(EF_S_DMG);
+				new_ef->type = EF_S_DMG;
+				effect_s_dmg_data *d = (void*)new_ef->data;
+				d->type = DMGT_FIRE;
+				d->val = 1;
+				effect_prepend(s, new_ef);
+			}
 		}
 	}
 	{
@@ -573,6 +567,7 @@ entity_s* clear_nonexistent(entity_s *sl) {
 			}
 			if (s->next != NULL)
 				s->next->prev = s->prev;
+			unparent_entity(s);
 			detach_generic_entity(s);
 			o_free(s);
 		}
@@ -995,7 +990,9 @@ void apply_tracer(entity_s *s) {
 			return;
 		}
 	}
-	tracer_d->cur_z -= G_TRACER_GRAVITY;
+	/* tracer_d->cur_z -= G_TRACER_GRAVITY; */
+	effect_unlink(s, tracer);
+	free_effect(tracer);
 }
 
 void apply_movement(entity_s *s) {
@@ -1054,7 +1051,7 @@ void apply_physics(entity_s *s) {
 	apply_attack(s);
 }
 
-void trigger_move(entity_s *s, int start_delay, int x, int y, int z) {
+void trigger_move(entity_s *s, int x, int y, int z) {
 	effect_s *ef = effect_by_type(s->effects, EF_BLOCK_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_BLOCK_MOVE);
@@ -1062,7 +1059,7 @@ void trigger_move(entity_s *s, int start_delay, int x, int y, int z) {
 		effect_prepend(s, ef);
 	}
 	effect_block_move_data *ed = (void*)ef->data;
-	ed->delay = start_delay;
+	ed->delay = G_MOVE_START_DELAY;
 	ed->x = x;
 	ed->y = y;
 	ed->z = z;
@@ -1654,6 +1651,16 @@ entity_l_s* effect_enlist(effect_s *s) {
 			return r;
 		}
 	}
+	if (s->type == EF_CONTAINER_ITEM) {
+		effect_container_item_data *d = (void*)s->data;
+		if (d->item != NULL) {
+			entity_l_s *r = o_malloc(sizeof(entity_l_s));
+			r->prev = NULL;
+			r->next = NULL;
+			r->ent = d->item;
+			return r;
+		}
+	}
 	return NULL;
 }
 
@@ -1828,10 +1835,16 @@ void unparent_entity(entity_s *s) {
 		if (entity_coords(s, &x, &y, &z)) {
 			entity_set_coords(s, x, y, z);
 		}
-		effect_s *lhand = effect_by_type(d->parent->effects, EF_LIMB_HAND);
-		if (lhand != NULL) {
-			effect_limb_hand_data *lhand_d = (void*)lhand->data;
-			lhand_d->item = NULL;
+		effect_s *t = d->parent->effects;
+		while (t != NULL) {
+			if (t->type == EF_LIMB_HAND) {
+				effect_limb_hand_data *td = (void*)t->data;
+				if (td->item == s) {
+					effect_unlink(d->parent, t);
+					break;
+				}
+			}
+			t = t->next;
 		}
 		d->parent = NULL;
 	}
@@ -1897,6 +1910,7 @@ int effect_data_size[] = {
 	[EF_PH_LIQUID] = sizeof(effect_ph_liquid_data),
 	[EF_CONTAINER] = sizeof(effect_container_data),
 	[EF_CONTAINER_ITEM] = sizeof(effect_container_item_data),
+	[EF_WET] = sizeof(effect_wet_data),
 };
 
 #include "gen-loaders.h"
@@ -1943,6 +1957,7 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_PH_LIQUID] = effect_dump_ph_liquid,
 	[EF_CONTAINER] = effect_dump_container,
 	[EF_CONTAINER_ITEM] = effect_dump_container_item,
+	[EF_WET] = effect_dump_wet,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -1987,4 +2002,5 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_PH_LIQUID] = effect_scan_ph_liquid,
 	[EF_CONTAINER] = effect_scan_container,
 	[EF_CONTAINER_ITEM] = effect_scan_container_item,
+	[EF_WET] = effect_scan_wet,
 };

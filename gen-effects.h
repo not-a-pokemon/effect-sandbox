@@ -97,9 +97,13 @@ typedef struct effect_ph_liquid_data {
 	enum liquid_type type;
 } effect_ph_liquid_data;
 typedef struct effect_container_data {
-	int cont_mask;
+	unsigned cont_mask;
 	int capacity;
 } effect_container_data;
 typedef struct effect_container_item_data {
-	struct entity_s *ent;
+	struct entity_s *item;
 } effect_container_item_data;
+typedef struct effect_wet_data {
+	enum liquid_type type;
+	int amount;
+} effect_wet_data;
