@@ -30,7 +30,7 @@ typedef struct effect_stair_move_data {
 	int delay;
 } effect_stair_move_data;
 typedef struct effect_render_data {
-	uint8_t chr;
+	char chr;
 	uint8_t r;
 	uint8_t g;
 	uint8_t b;
@@ -38,6 +38,7 @@ typedef struct effect_render_data {
 } effect_render_data;
 typedef struct effect_limb_slot_data {
 	struct entity_s *item;
+	uint32_t tag;
 } effect_limb_slot_data;
 typedef struct effect_limb_hand_data {
 	int grab_type;
@@ -87,6 +88,35 @@ typedef struct effect_rotation_data {
 typedef struct effect_a_pressure_plate_data {
 	int thresold;
 } effect_a_pressure_plate_data;
+typedef struct effect_m_grab_data {
+	int eff_tag;
+	struct entity_s *ent;
+} effect_m_grab_data;
+typedef struct effect_m_drop_data {
+	int eff_tag;
+} effect_m_drop_data;
+typedef struct effect_m_put_data {
+	int eff_tag;
+	struct entity_s *where;
+} effect_m_put_data;
+typedef struct effect_m_throw_data {
+	int eff_tag;
+	int x;
+	int y;
+	int z;
+	int speed;
+} effect_m_throw_data;
+typedef struct effect_m_aim_for_data {
+	int eff_tag;
+	int x;
+	int y;
+	int z;
+	struct entity_s *ent;
+} effect_m_aim_for_data;
+typedef struct effect_m_touch_data {
+	int eff_tag;
+	struct entity_s *ent;
+} effect_m_touch_data;
 typedef struct effect_stats_data {
 	int str;
 	int dex;

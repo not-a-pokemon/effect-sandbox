@@ -56,6 +56,8 @@ sector_s *sector_get_sector(sectors_s *s, int x, int y, int z) {
 }
 
 entity_l_s *sector_get_block_entities(sector_s *s, int x, int y, int z) {
+	if (s == NULL)
+		return NULL;
 	return s->block_entities[x][y][z];
 }
 
@@ -175,6 +177,30 @@ effect_s *effect_by_ptr(effect_s *s, effect_s *f) {
 	return NULL;
 }
 
+effect_s* next_effect_by_type(effect_s *s, effect_type t) {
+	if (s->next == NULL)
+		return NULL;
+	s = s->next;
+	while (s != NULL) {
+		if (s->type == t)
+			return s;
+		s = s->next;
+	}
+	return NULL;
+}
+
+effect_s* prev_effect_by_type(effect_s *s, effect_type t) {
+	if (s->prev == NULL)
+		return NULL;
+	s = s->prev;
+	while (s != NULL) {
+		if (s->type == t)
+			return s;
+		s = s->prev;
+	}
+	return NULL;
+}
+
 void apply_triggers(entity_s *s) {
 	{
 		effect_s *ef = effect_by_type(s->effects, EF_A_PRESSURE_PLATE);
@@ -254,7 +280,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_GRAB);
 		if (ef != NULL) {
 			effect_m_grab_data *d = (void*)ef->data;
-			hand_grab(s, d->eff, d->ent);
+			hand_grab(s, entity_limb_by_tag(s, d->eff_tag), d->ent);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -263,7 +289,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_DROP);
 		if (ef != NULL) {
 			effect_m_drop_data *d = (void*)ef->data;
-			hand_drop(s, d->eff);
+			hand_drop(s, entity_limb_by_tag(s, d->eff_tag));
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -272,7 +298,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_PUT);
 		if (ef != NULL) {
 			effect_m_put_data *d = (void*)ef->data;
-			hand_put(s, d->eff, d->where);
+			hand_put(s, entity_limb_by_tag(s, d->eff_tag), d->where);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -281,7 +307,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_THROW);
 		if (ef != NULL) {
 			effect_m_throw_data *d = (void*)ef->data;
-			hand_throw(s, d->eff, d->x, d->y, d->z, d->speed);
+			hand_throw(s, entity_limb_by_tag(s, d->eff_tag), d->x, d->y, d->z, d->speed);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -290,7 +316,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_TOUCH);
 		if (ef != NULL) {
 			effect_m_touch_data *d = (void*)ef->data;
-			if (entity_reachable(s, d->eff, d->ent)) {
+			if (entity_reachable(s, entity_limb_by_tag(s, d->eff_tag), d->ent)) {
 				entity_s *target = d->ent;
 				effect_s *new_ef = alloc_effect(EF_S_TOUCH);
 				new_ef->type = EF_S_TOUCH;
@@ -304,7 +330,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_AIM_FOR);
 		if (ef != NULL) {
 			effect_m_aim_for_data *d = (void*)ef->data;
-			hand_aim(s, d->eff, d->x, d->y, d->z, d->ent);
+			hand_aim(s, entity_limb_by_tag(s, d->eff_tag), d->x, d->y, d->z, d->ent);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -764,6 +790,19 @@ void effect_prepend(entity_s *s, effect_s *e) {
 	s->effects = e;
 }
 
+effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag) {
+	effect_s *e = s->effects;
+	while (e != NULL) {
+		if (e->type == EF_LIMB_SLOT) {
+			effect_limb_slot_data *d = (void*)e->data;
+			if (d->tag == tag)
+				return e;
+		}
+		e = e->next;
+	}
+	return NULL;
+}
+
 void apply_block_move(entity_s *s) {
 	effect_s *ef_stats = effect_by_type(s->effects, EF_STATS);
 	int speed = 64;
@@ -1094,37 +1133,49 @@ void trigger_go_down(entity_s *s, int start_delay) {
 }
 
 void trigger_grab(entity_s *s, effect_s *h, entity_s *w) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_GRAB);
 	new_eff->type = EF_M_GRAB;
 	effect_m_grab_data *d = (void*)new_eff->data;
-	d->eff = h;
+	d->eff_tag = ds->tag;
 	d->ent = w;
 	effect_prepend(s, new_eff);
 }
 
 void trigger_drop(entity_s *s, effect_s *h) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_DROP);
 	new_eff->type = EF_M_DROP;
 	effect_m_drop_data *d = (void*)new_eff->data;
-	d->eff = h;
+	d->eff_tag = ds->tag;
 	effect_prepend(s, new_eff);
 }
 
 void trigger_put(entity_s *s, effect_s *h, entity_s *w) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_PUT);
 	new_eff->type = EF_M_PUT;
 	effect_m_put_data *d = (void*)new_eff->data;
-	d->eff = h;
+	d->eff_tag = ds->tag;
 	d->where = w;
 	effect_prepend(s, new_eff);
 }
 
 void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_THROW);
 	new_eff->type = EF_M_THROW;
 	effect_prepend(s, new_eff);
 	effect_m_throw_data *d = (void*)new_eff->data;
-	d->eff = h;
+	d->eff_tag = ds->tag;
 	d->x = x;
 	d->y = y;
 	d->z = z;
@@ -1132,10 +1183,13 @@ void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 }
 
 void trigger_touch(entity_s *s, effect_s *h, entity_s *w) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_TOUCH);
 	new_eff->type = EF_M_TOUCH;
 	effect_m_touch_data *d = (void*)new_eff->data;
-	d->eff = h;
+	d->eff_tag = ds->tag;
 	d->ent = w;
 	effect_prepend(s, new_eff);
 }
@@ -1171,10 +1225,13 @@ void trigger_attack(entity_s *s, entity_s *e) {
 }
 
 void trigger_aim(entity_s *s, effect_s *e, int x, int y, int z, entity_s *ent) {
+	if (e->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *ds = (void*)e->data;
 	effect_s *new_eff = alloc_effect(EF_M_AIM_FOR);
 	new_eff->type = EF_M_AIM_FOR;
 	effect_m_aim_for_data *d = (void*)new_eff->data;
-	d->eff = e;
+	d->eff_tag = ds->tag;
 	d->x = x;
 	d->y = y;
 	d->z = z;
@@ -1264,7 +1321,6 @@ void hand_put(entity_s *ent, effect_s *hand, entity_s *w) {
 		}
 	}
 }
-
 
 void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 	if (h->type != EF_LIMB_SLOT) {
@@ -1840,7 +1896,7 @@ void unparent_entity(entity_s *s) {
 			if (t->type == EF_LIMB_HAND) {
 				effect_limb_hand_data *td = (void*)t->data;
 				if (td->item == s) {
-					effect_unlink(d->parent, t);
+					td->item = NULL;
 					break;
 				}
 			}
@@ -1978,7 +2034,7 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_MATERIAL] = effect_scan_material,
 	[EF_SIZE_SCALE] = effect_scan_size_scale,
 	[EF_AIM] = effect_scan_aim,
-	[EF_ATTACK] = NULL,
+	[EF_ATTACK] = effect_scan_attack,
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_scan_table_item,
 	[EF_FIRE] = NULL,

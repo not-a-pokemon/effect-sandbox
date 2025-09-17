@@ -28,7 +28,7 @@ void *o_malloc(size_t s) {
 	return t;
 }
 
-void *o_malloc_m(size_t s, char *msg) {
+void *o_malloc_m(size_t s, const char *msg) {
 	void *t = s > 0 ? malloc(s) : NULL;
 	for (size_t i = 0; i < O_BUF_S; i ++) {
 		if (o_buf[i] == t) {
@@ -58,7 +58,7 @@ void o_free(void *x) {
 			found = 1;
 		}
 		if (o_buf[i] == x) {
-			fprintf(stderr, "[DED] o_free(%p) failed: double free\n", x);
+			fprintf(stderr, "[ERR] o_free(%p) failed: double free\n", x);
 			fflush(stderr);
 			/* Crash badly? */
 			return;
@@ -83,7 +83,7 @@ void o_free(void *x) {
 #endif
 }
 
-void o_free_m(void *x, char *s) {
+void o_free_m(void *x, const char *s) {
 	if (x == NULL)
 		return;
 	int found = 0;

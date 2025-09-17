@@ -77,7 +77,7 @@ void effect_dump_stair_move(effect_s *e, FILE *stream) {
 void effect_scan_render(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
 	effect_render_data *d = (void*)e->data;
-	fread(&d->chr, sizeof(uint8_t), 1, stream);
+	fread(&d->chr, sizeof(char), 1, stream);
 	fread(&d->r, sizeof(uint8_t), 1, stream);
 	fread(&d->g, sizeof(uint8_t), 1, stream);
 	fread(&d->b, sizeof(uint8_t), 1, stream);
@@ -85,7 +85,7 @@ void effect_scan_render(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, eff
 }
 void effect_dump_render(effect_s *e, FILE *stream) {
 	effect_render_data *d = (void*)e->data;
-	fwrite(&d->chr, sizeof(uint8_t), 1, stream);
+	fwrite(&d->chr, sizeof(char), 1, stream);
 	fwrite(&d->r, sizeof(uint8_t), 1, stream);
 	fwrite(&d->g, sizeof(uint8_t), 1, stream);
 	fwrite(&d->b, sizeof(uint8_t), 1, stream);
@@ -95,10 +95,12 @@ void effect_scan_limb_slot(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, 
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
 	effect_limb_slot_data *d = (void*)e->data;
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->item = NULL; else d->item = a_ent[t]; }
+	fread(&d->tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_limb_slot(effect_s *e, FILE *stream) {
 	effect_limb_slot_data *d = (void*)e->data;
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
+	fwrite(&d->tag, sizeof(uint32_t), 1, stream);
 }
 void effect_scan_limb_hand(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
@@ -231,6 +233,82 @@ void effect_scan_a_pressure_plate(effect_s *e, int n_ent, entity_s **a_ent, int 
 void effect_dump_a_pressure_plate(effect_s *e, FILE *stream) {
 	effect_a_pressure_plate_data *d = (void*)e->data;
 	fwrite(&d->thresold, sizeof(int), 1, stream);
+}
+void effect_scan_m_grab(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_grab_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+}
+void effect_dump_m_grab(effect_s *e, FILE *stream) {
+	effect_m_grab_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+}
+void effect_scan_m_drop(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_drop_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+}
+void effect_dump_m_drop(effect_s *e, FILE *stream) {
+	effect_m_drop_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+}
+void effect_scan_m_put(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_put_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->where = NULL; else d->where = a_ent[t]; }
+}
+void effect_dump_m_put(effect_s *e, FILE *stream) {
+	effect_m_put_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; if (d->where == NULL){t = -1;}else{t = entity_get_index(d->where);} fwrite(&t, sizeof(int), 1, stream); }
+}
+void effect_scan_m_throw(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_throw_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->x, sizeof(int), 1, stream);
+	fread(&d->y, sizeof(int), 1, stream);
+	fread(&d->z, sizeof(int), 1, stream);
+	fread(&d->speed, sizeof(int), 1, stream);
+}
+void effect_dump_m_throw(effect_s *e, FILE *stream) {
+	effect_m_throw_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->x, sizeof(int), 1, stream);
+	fwrite(&d->y, sizeof(int), 1, stream);
+	fwrite(&d->z, sizeof(int), 1, stream);
+	fwrite(&d->speed, sizeof(int), 1, stream);
+}
+void effect_scan_m_aim_for(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_aim_for_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->x, sizeof(int), 1, stream);
+	fread(&d->y, sizeof(int), 1, stream);
+	fread(&d->z, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+}
+void effect_dump_m_aim_for(effect_s *e, FILE *stream) {
+	effect_m_aim_for_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->x, sizeof(int), 1, stream);
+	fwrite(&d->y, sizeof(int), 1, stream);
+	fwrite(&d->z, sizeof(int), 1, stream);
+	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+}
+void effect_scan_m_touch(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
+	effect_m_touch_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+}
+void effect_dump_m_touch(effect_s *e, FILE *stream) {
+	effect_m_touch_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 }
 void effect_scan_stats(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;

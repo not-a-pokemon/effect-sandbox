@@ -623,6 +623,7 @@ void setup_field(void) {
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
+			d->tag = 0;
 			{
 				entity_s *e_hand = o_malloc(sizeof(entity_s));
 				e_hand->effects = NULL;
@@ -649,6 +650,7 @@ void setup_field(void) {
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
+			d->tag = 1;
 			{
 				entity_s *e_hand = o_malloc(sizeof(entity_s));
 				e_hand->effects = NULL;
@@ -1071,8 +1073,19 @@ void params_push_effect(effect_s *s) {
 	gu_params.nargs++;
 }
 
+typedef struct gu_things_t {
+	int skip_moving;
+} gu_things_t;
+
+gu_things_t gu_things;
+
+void cmap_toggle_skip_moving(cmap_params_t *p) {
+	(void)p;
+	gu_things.skip_moving ^= 1;
+}
+
 void cmap_wait(cmap_params_t *p) {
-	(void) p;
+	(void)p;
 }
 
 void cmap_go_up(cmap_params_t *p) {
@@ -1203,6 +1216,7 @@ void cmap_attack(cmap_params_t *p) {
 }
 
 const cmap_t command_maps[] = {
+	(cmap_t){'/', NULL, cmap_toggle_skip_moving},
 	(cmap_t){'w', NULL, cmap_wait},
 	(cmap_t){'<', NULL, cmap_go_up},
 	(cmap_t){'>', NULL, cmap_go_down},
@@ -1246,21 +1260,27 @@ typedef struct inputw_entity_s {
 	entity_l_s *cur_sel;
 } inputw_entity_s;
 
+typedef struct inputw_limb_s {
+	entity_s *ent;
+	effect_s *cur_sel;
+} inputw_limb_s;
+
 #define INPUTW_DATA_SIZE 24
-typedef struct inputw {
+typedef struct inputw_t {
 	inputw_type type;
 	char data[INPUTW_DATA_SIZE];
 	void *data1;
 	union {
 		inputw_tile_s u_tile;
 		inputw_entity_s u_entity;
+		inputw_limb_s u_limb;
 	} data_u;
-} inputw;
+} inputw_t;
 
 #define INPUTW_MAXNR 16
-inputw inputws[INPUTW_MAXNR];
+inputw_t inputws[INPUTW_MAXNR];
 int inputw_n = 0;
-inputw inputw_queue[INPUTW_MAXNR];
+inputw_t inputw_queue[INPUTW_MAXNR];
 int inputw_queue_n = 0;
 
 void input_queue_flush(void) {
@@ -1268,7 +1288,7 @@ void input_queue_flush(void) {
 	while (inputw_queue_n > 0) {
 		inputw_queue_n--;
 		if (inputw_n < INPUTW_MAXNR) {
-			memcpy(&inputws[inputw_n], &inputw_queue[inputw_queue_n], sizeof(inputw));
+			memcpy(&inputws[inputw_n], &inputw_queue[inputw_queue_n], sizeof(inputw_t));
 			inputw_n++;
 		} else {
 			exc = 1;
@@ -1408,7 +1428,7 @@ int inputw_tile_key(SDL_Keycode sym) {
 		fprintf(stderr, "No input layers in inputw_tile_key\n");
 		return 0;
 	}
-	inputw *l = &inputws[inputw_n-1];
+	inputw_t *l = &inputws[inputw_n-1];
 	inputw_tile_s *t = &l->data_u.u_tile;
 	int x, y;
 	if (key_to_direction(sym, &x, &y)) {
@@ -1479,14 +1499,32 @@ int inputw_limb_key(SDL_Keycode sym) {
 		fprintf(stderr, "Input layer isn't limb\n");
 		return 0;
 	}
+	inputw_limb_s *e = &inputws[inputw_n - 1].data_u.u_limb;
 	if (sym == SDLK_ESCAPE) {
 		inputw_clear();
 		return 1;
+	}
+	if (sym == SDLK_DOWN) {
+		effect_s *t = next_effect_by_type(e->cur_sel, EF_LIMB_SLOT);
+		if (t != NULL)
+			e->cur_sel = t;
+		return 1;
+	}
+	if (sym == SDLK_UP) {
+		effect_s *t = prev_effect_by_type(e->cur_sel, EF_LIMB_SLOT);
+		if (t != NULL)
+			e->cur_sel = t;
+		return 1;
+	}
+	if (sym == SDLK_RETURN) {
+		params_push_effect(e->cur_sel);
+		return 3;
 	}
 	return 0;
 }
 
 int inputw_limb_default_key(SDL_Keycode sym) {
+	(void)sym;
 	if (inputw_n <= 0) {
 		fprintf(stderr, "No input layers in inputw_limb_default_key\n");
 		return 0;
@@ -1495,9 +1533,22 @@ int inputw_limb_default_key(SDL_Keycode sym) {
 		fprintf(stderr, "Input layer isn't limb_default\n");
 		return 0;
 	}
-	effect_s *slot = effect_by_type(gu_params.control_ent->effects, EF_LIMB_SLOT);
-	params_push_effect(slot);
-	return 3;
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return 1;
+	}
+	if (sym == 'm') {
+		memset(&inputws[inputw_n - 1].data_u, 0, sizeof(inputws->data_u));
+		inputws[inputw_n - 1].type = INPUTW_LIMB;
+		inputws[inputw_n - 1].data_u.u_limb.ent = gu_params.control_ent;
+		return 4;
+	}
+	if (sym == SDLK_RETURN) {
+		effect_s *slot = effect_by_type(gu_params.control_ent->effects, EF_LIMB_SLOT);
+		params_push_effect(slot);
+		return 3;
+	}
+	return 0;
 }
 
 void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
@@ -1561,29 +1612,63 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 	} break;
 	case INPUTW_ENTITY: {
 		char rend_char = '\0';
-		{
-			entity_l_s *cur_sel = inputws[inputw_n - 1].data_u.u_entity.cur_sel;
-			entity_s *cur_ent = cur_sel == NULL ? NULL : cur_sel->ent;
-			if (cur_ent != NULL) {
-				effect_s *rend = effect_by_type(cur_ent->effects, EF_RENDER);
-				if (rend != NULL) {
-					effect_render_data *d = (void*)rend->data;
-					rend_char = d->chr;
+		int yc = y;
+		entity_l_s *cur = inputws[inputw_n - 1].data_u.u_entity.cur_list;
+		while (cur != NULL) {
+			entity_s *cur_ent = cur->ent;
+			effect_s *e_rend = effect_by_type(cur_ent->effects, EF_RENDER);
+			if (e_rend != NULL) {
+				effect_render_data *d = (void*)e_rend->data;
+				rend_char = d->chr;
+			}
+			snprintf(buf, 32, "%p %c", cur_ent, rend_char);
+			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+			if (cur != inputws[inputw_n - 1].data_u.u_entity.cur_sel) {
+				colo.g /= 2;
+				colo.b /= 2;
+			}
+			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+			SDL_Rect target;
+			target.x = x;
+			target.y = yc;
+			target.w = surf->w;
+			target.h = surf->h;
+			yc += target.h;
+			SDL_RenderCopy(rend, tex, NULL, &target);
+			SDL_DestroyTexture(tex);
+			SDL_FreeSurface(surf);
+			cur = cur->next;
+		}
+	} break;
+	case INPUTW_LIMB: {
+		int yc = y;
+		effect_s *e = gu_params.control_ent != NULL ? gu_params.control_ent->effects : NULL;
+		while (e != NULL) {
+			if (e->type == EF_LIMB_SLOT) {
+				effect_limb_slot_data *d = (void*)e->data;
+				if (d->item != NULL && effect_by_type(d->item->effects, EF_LIMB_HAND) != NULL) {
+					snprintf(buf, 32, "%p %d", d->item, d->tag);
+					SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+					if (e != inputws[inputw_n - 1].data_u.u_limb.cur_sel) {
+						colo.g /= 2;
+						colo.b /= 2;
+					}
+					SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+					SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+					SDL_Rect target;
+					target.x = x;
+					target.y = yc;
+					target.w = surf->w;
+					target.h = surf->h;
+					yc += target.h;
+					SDL_RenderCopy(rend, tex, NULL, &target);
+					SDL_DestroyTexture(tex);
+					SDL_FreeSurface(surf);
 				}
 			}
+			e = e->next;
 		}
-		snprintf(buf, 32, "%p %c", inputws[inputw_n - 1].data_u.u_entity.cur_sel, rend_char);
-		SDL_Color colo = {.r = 0, .g = 255, .b = 128};
-		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
-		SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-		SDL_Rect target;
-		target.x = x;
-		target.y = y;
-		target.w = surf->w;
-		target.h = surf->h;
-		SDL_RenderCopy(rend, tex, NULL, &target);
-		SDL_DestroyTexture(tex);
-		SDL_FreeSurface(surf);
 	} break;
 	}
 }
@@ -1601,6 +1686,11 @@ void inputw_layer_enter() {
 		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
 		e->cur_list = sector_get_block_entities(sec, x, y, z);
 		e->cur_sel = e->cur_list;
+	} break;
+	case INPUTW_LIMB: {
+		inputw_limb_s *e = &inputws[inputw_n - 1].data_u.u_limb;
+		if (e->ent != NULL)
+			e->cur_sel = e->ent->effects;
 	} break;
 	default: {
 	}
@@ -1644,7 +1734,7 @@ int main(int argc, char **argv) {
 					new_sect->z = 0;
 					new_sect->snext = NULL;
 					new_sect->sprev = NULL;
-					memset(new_sect->block_entities, 0, sizeof(entity_l_s*) * G_SECTOR_SIZE * G_SECTOR_SIZE * G_SECTOR_SIZE);
+					memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
 					if (g_sectors != NULL) {
 						new_sect->snext = g_sectors;
 						g_sectors->sprev = new_sect;
@@ -1686,6 +1776,7 @@ int main(int argc, char **argv) {
 
 	uint64_t last_blink = 0;
 	int need_redraw = 1;
+	int skip_tick = 0;
 
 	if (control_ent == NULL) {
 		fprintf(stderr, "No controlling entity, quit\n");
@@ -1693,8 +1784,9 @@ int main(int argc, char **argv) {
 	}
 
 	while (running) {
-		if (SDL_GetTicks() > last_blink + 500) {
-			last_blink = SDL_GetTicks();
+		unsigned long long cur_ticks = SDL_GetTicks();
+		if (cur_ticks > last_blink + 500) {
+			last_blink = cur_ticks;
 			cam.blink++;
 			need_redraw = 1;
 		}
@@ -1719,6 +1811,15 @@ int main(int argc, char **argv) {
 		} else {
 			SDL_Delay(40);
 		}
+		skip_tick = 0;
+		if (gu_things.skip_moving) {
+			if (
+				effect_by_type(control_ent->effects, EF_BLOCK_MOVE) != NULL ||
+				effect_by_type(control_ent->effects, EF_STAIR_MOVE) != NULL
+			) {
+				skip_tick = 1;
+			}
+		}
 		SDL_Event evt;
 		int trigger_done = 0;
 		while (SDL_PollEvent(&evt)) {
@@ -1737,8 +1838,8 @@ int main(int argc, char **argv) {
 				} else {
 					printf("'%d' is NOT a printable symbol\n", sym);
 				}
-				if (inputw_n == 0) {
-					/* TODO check if it's reaction time for payer */
+				if (inputw_n == 0 && !skip_tick) {
+					/* TODO check if it's reaction time for player */
 					for (int i = 0; i < n_command_maps; i++) {
 						if (command_maps[i].key == sym) {
 							command_map_exec(control_ent, i);
@@ -1770,7 +1871,6 @@ int main(int argc, char **argv) {
 					if (mask & 1)
 						need_redraw = 1;
 					if (mask & 2) {
-						fprintf(stderr, "MASK & 2\n");
 						inputw_n--;
 						inputw_layer_enter();
 						if (inputw_n == 0) {
@@ -1778,17 +1878,18 @@ int main(int argc, char **argv) {
 							trigger_done = 1;
 						}
 					}
+					if (mask & 4) {
+						inputw_layer_enter();
+						need_redraw = 1;
+					}
 				}
 			}
 			if (evt.type == SDL_QUIT) {
 				running = 0;
 			}
 		}
-		if (trigger_done > 0) {
+		if (trigger_done > 0 || skip_tick) {
 			process_tick(g_entities);
-			if (trigger_done == 2) {
-				process_tick(g_entities);
-			}
 			g_entities = clear_nonexistent(g_entities);
 			need_redraw = 1;
 		}

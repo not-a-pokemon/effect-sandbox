@@ -93,42 +93,6 @@ typedef enum material_type {
 	MAT_PLANT,
 } material_type;
 
-typedef struct effect_m_grab_data {
-	struct effect_s *eff;
-	struct entity_s *ent;
-} effect_m_grab_data;
-
-typedef struct effect_m_drop_data {
-	struct effect_s *eff;
-	//struct entity_s *ent;
-} effect_m_drop_data;
-
-typedef struct effect_m_put_data {
-	struct effect_s *eff;
-	struct entity_s *where;
-} effect_m_put_data;
-
-typedef struct effect_m_throw_data {
-	struct effect_s *eff;
-	int x;
-	int y;
-	int z;
-	int speed;
-} effect_m_throw_data;
-
-typedef struct effect_m_aim_for_data {
-	struct effect_s *eff;
-	int x;
-	int y;
-	int z;
-	struct entity_s *ent;
-} effect_m_aim_for_data;
-
-typedef struct effect_m_touch_data {
-	struct effect_s *eff;
-	struct entity_s *ent;
-} effect_m_touch_data;
-
 typedef enum damage_type {
 	DMGT_BLUNT,
 	DMGT_CUT,
@@ -202,12 +166,15 @@ int sector_get_block_stairs(sector_s *s, int x, int y, int z);
 int sector_get_block_slope(sector_s *s, int x, int y, int z);
 int block_fallable(int x, int y, int z);
 
-effect_s *effect_by_type(effect_s *s, effect_type t);
-effect_s *effect_by_ptr(effect_s *s, effect_s *f);
-// effect_s *next_effect_by_type(effect_s *s, effect_type t);
+effect_s* effect_by_type(effect_s *s, effect_type t);
+effect_s* effect_by_ptr(effect_s *s, effect_s *f);
+effect_s* next_effect_by_type(effect_s *s, effect_type t);
+effect_s* prev_effect_by_type(effect_s *s, effect_type t);
 
 void effect_unlink(entity_s *s, effect_s *e);
 void effect_prepend(entity_s *s, effect_s *e);
+
+effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag);
 
 void apply_block_move(entity_s *s);
 void apply_stair_move(entity_s *s);

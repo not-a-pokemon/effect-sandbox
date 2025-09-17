@@ -2,7 +2,10 @@
 default: efsa
 
 CFLAGS+=-Wall -Wextra
+# Use for testing only
+# CFLAGS+=-ftrivial-auto-var-init=pattern
 LDFLAGS!=pkg-config --libs sdl2 SDL2_ttf
+SDL_CFLAGS!=pkg-config --cflags sdl2 SDL2_ttf
 
 SRCS=\
 	 main.c\
@@ -24,6 +27,9 @@ gen-effects.h gen-loaders.h: util/structgen effect-data.txt
 
 efsa: $(OBJ)
 	$(CC) $(OBJ) -o efsa $(LDFLAGS)
+
+main.o:
+	$(CC) $(CFLAGS) $(SDL_CFLAGS) -c -o main.o main.c
 
 .PHONY: clean
 clean:
