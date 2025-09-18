@@ -1367,6 +1367,7 @@ void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 }
 
 void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent) {
+	(void)s;
 	if (h->type != EF_LIMB_SLOT) {
 		return;
 	}
@@ -1626,6 +1627,10 @@ void unload_sector(sector_s *s) {
 }
 
 void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+	(void)n_ent;
+	(void)a_ent;
+	(void)n_eff;
+	(void)a_eff;
 	effect_ph_block_data *d = (void*)e->data;
 	/* fscanf(stream, "[BLOCK %d %d %d %c%c%c%c%c]", &d->x, &d->y, &d->z, &a, &b, &c, &de, &ee); */
 	fread(&d->x, sizeof(int), 1, stream);

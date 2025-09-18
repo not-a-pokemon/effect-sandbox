@@ -43,6 +43,8 @@ void *o_malloc_m(size_t s, const char *msg) {
 #if OMALLOC_LOG
 	fprintf(stderr, "[LOG] o_malloc() -> %p %s\n", t, msg);
 	fflush(stderr);
+#else
+	(void)msg;
 #endif
 	return t;
 }

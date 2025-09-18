@@ -1229,7 +1229,7 @@ const cmap_t command_maps[] = {
 	(cmap_t){SDLK_KP_8, NULL, cmap_go},
 	(cmap_t){SDLK_KP_9, NULL, cmap_go},
 	(cmap_t){'p', "He(Put where?)", cmap_put},
-	(cmap_t){'d', "H", cmap_drop},
+	(cmap_t){'d', "H(Drop what?)", cmap_drop},
 	(cmap_t){'g', "He(Grab what?)", cmap_grab},
 	(cmap_t){'o', "He(Open door?)", cmap_open_door},
 	(cmap_t){'t', "He(Into what?)", cmap_throw},
@@ -1343,20 +1343,26 @@ void inputw_clear(void) {
 	/* TODO inputw clear already stored args */
 }
 
-int command_arg_e(entity_s *control_ent, const char *s) {
-	char msg_buf[INPUTW_DATA_SIZE];
-	int msg_buf_n = 0, nr = 0;
+int command_parse_message(const char *s, char *buf, int buf_n) {
+	int nr = 0, c = 0;
 	if (s[nr] == '(') {
 		nr++;
 		while (s[nr] != '\0' && s[nr] != ')') {
-			if (msg_buf_n < INPUTW_DATA_SIZE - 1)
-				msg_buf[msg_buf_n++] = s[nr];
+			if (c < buf_n - 1)
+				buf[c++] = s[nr];
 			nr++;
 		}
 		if (s[nr] == ')')
 			nr++;
 	}
-	msg_buf[msg_buf_n] = '\0';
+	buf[c] = '\0';
+	return nr;
+}
+
+int command_arg_e(entity_s *control_ent, const char *s) {
+	char msg_buf[INPUTW_DATA_SIZE];
+	int nr = 0;
+	nr = command_parse_message(s, msg_buf, 32);
 	printf("arg e message (%s)\n", msg_buf);
 	input_queue_entity_select(control_ent, msg_buf);
 	return nr;
@@ -1364,28 +1370,22 @@ int command_arg_e(entity_s *control_ent, const char *s) {
 
 int command_arg_h(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
-	int msg_buf_n = 0, nr = 0;
-	if (s[nr] == '(') {
-		nr++;
-		while (s[nr] != '\0' && s[nr] != ')') {
-			if (msg_buf_n < INPUTW_DATA_SIZE - 1)
-				msg_buf[msg_buf_n++] = s[nr];
-			nr++;
-		}
-		if (s[nr] == ')')
-			nr++;
-	}
-	msg_buf[msg_buf_n] = '\0';
+	int nr = 0;
+	nr = command_parse_message(s, msg_buf, 32);
 	printf("arg h message (%s)\n", msg_buf);
 	input_queue_limb_select(control_ent, msg_buf);
 	return nr;
 }
 
 int command_arg_h_big(entity_s *control_ent, const char *s) {
+	char msg_buf[INPUTW_DATA_SIZE];
+	int nr;
 	(void)control_ent;
 	(void)s;
+	nr = command_parse_message(s, msg_buf, 32);
+	printf("arg H message (%s)\n", msg_buf);
 	input_queue_limb_default(control_ent);
-	return 0;
+	return nr;
 }
 
 void cmap_clear_args(void) {
@@ -1524,7 +1524,6 @@ int inputw_limb_key(SDL_Keycode sym) {
 }
 
 int inputw_limb_default_key(SDL_Keycode sym) {
-	(void)sym;
 	if (inputw_n <= 0) {
 		fprintf(stderr, "No input layers in inputw_limb_default_key\n");
 		return 0;
@@ -1552,6 +1551,7 @@ int inputw_limb_default_key(SDL_Keycode sym) {
 }
 
 void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
+	(void)control_ent;
 	switch (inputw_n == 0 ? INPUTW_ORIGIN : inputws[inputw_n - 1].type) {
 	case INPUTW_ORIGIN: {
 		cam->cursor_x = -1;
@@ -1670,6 +1670,8 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 			e = e->next;
 		}
 	} break;
+	default: {
+	}
 	}
 }
 
@@ -1867,6 +1869,8 @@ int main(int argc, char **argv) {
 					case INPUTW_LIMB_DEFAULT: {
 						mask = inputw_limb_default_key(sym);
 					} break;
+					default: {
+					}
 					}
 					if (mask & 1)
 						need_redraw = 1;
