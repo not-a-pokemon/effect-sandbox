@@ -3,378 +3,324 @@
 #include <string.h>
 #include <ctype.h>
 
-#define ENUM_BIT (1<<30)
-#define TYPEDEF_BIT (1<<29)
+#define MAX_NAME_LEN 32
+#define ENUM_TAG 1
+#define ENT_R_TAG 2
+#define ENT_N_TAG 3
 
-_Bool m_is_white(char c) {
+__attribute__((noreturn)) void die(const char *msg) {
+	fputs(msg, stderr);
+	exit(1);
+}
+
+FILE* m_open(const char *name, const char *attr) {
+	FILE *t = fopen(name, attr);
+	if (t == NULL) {
+		perror("m_open");
+		exit(1);
+	}
+	return t;
+}
+
+int m_whitespace(char c) {
 	return c == ' ' || c == '\t' || c == '\n';
 }
 
-_Bool m_isac(char c) {
+int m_isalpha(char c) {
 	return
 		(c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		c == '_';
 }
 
-_Bool m_isan(char c) {
-	return m_isac(c) || (c >= '0' && c <= '9');
+int m_alnum(char c) {
+	return m_isalpha(c) || (c >= '0' && c <= '9');
 }
 
-_Bool m_is_c_word(char *c) {
-	if (!m_isac(*c))
+int m_name(const char *c) {
+	int i;
+	if (!m_isalpha(*c))
 		return 0;
-	for (int i = 1; c[i]; i++) {
-		if (!m_isan(c[i]))
+	for (i = 1; c[i]; i++) {
+		if (!m_alnum(c[i]))
 			return 0;
 	}
 	return 1;
 }
 
-enum m_get_token_err {
-	m_get_token_ok = 0,
-	m_get_token_overlength = -2,
-	m_get_token_eof = -1,
-};
+void* m_malloc(size_t size) {
+	void *t = malloc(size);
+	if (t == NULL) {
+		fprintf(stderr, "Failed malloc\n");
+		exit(1);
+	}
+	return t;
+}
 
-int m_get_token(FILE *stream, char *buf, int buf_len) {
+char consume_buf[MAX_NAME_LEN];
+
+int consume_end(FILE *inp) {
 	int peek;
 	do {
-		peek = fgetc(stream);
-	} while (m_is_white(peek) && peek != EOF);
-	if (feof(stream)) {
-		return m_get_token_eof;
-	}
+		peek = fgetc(inp);
+	} while (m_whitespace(peek) && peek != EOF);
+	if (peek == EOF)
+		return 1;
 	int c = 0;
-	do {
-		buf[c++] = peek;
-		peek = fgetc(stream);
-		if (m_is_white(peek) || peek == EOF) break;
-		if (c + 1 >= buf_len) return m_get_token_overlength;
-	} while (1);
-	buf[c] = '\0';
-	return m_get_token_ok;
-}
-
-#define N_ENUMS 1024
-static char *enum_tab[N_ENUMS];
-static char *typedef_tab[N_ENUMS];
-int tab_pull(char **tab, const char *s) {
-	int i = 0;
-	for (; i < N_ENUMS; i++) {
-		if (tab[i] == NULL) {
-			size_t l = strlen(s)+1;
-			tab[i] = malloc(l);
-			if (tab[i] == NULL)
-				return -2;
-			memcpy(tab[i], s, l);
-			return i;
-		} else if (!strcmp(tab[i], s)) {
-			return i;
+	while (1) {
+		if (c >= MAX_NAME_LEN - 1) {
+			consume_buf[MAX_NAME_LEN - 1] = '\0';
+			fprintf(stderr, "Word too long: `%s'\n", consume_buf);
+			exit(1);
 		}
+		consume_buf[c++] = peek;
+		peek = fgetc(inp);
+		if (m_whitespace(peek) || peek == EOF)
+			break;
 	}
-	return -1;
-}
-
-typedef struct variable_tag {
-	char name[64];
-	int type;
-	int mod;
-} variable_tag;
-
-typedef struct struct_tag {
-	char name[64];
-	variable_tag *v;
-	int n;
-} struct_tag;
-
-int put_struct(FILE *stream, struct_tag *s) {
-	fprintf(stream, "typedef struct effect_%s_data {\n", s->name);
-	for (int i = 0; i < s->n; i++) {
-		const char *type_str;
-		int space = 1;
-		char tmp[256];
-		if (s->v[i].type == 0) {
-			if (s->v[i].mod == 0) {
-				type_str = "int";
-			} else if (s->v[i].mod & ENUM_BIT) {
-				snprintf(tmp, 256, "enum %s", enum_tab[s->v[i].mod & ~ENUM_BIT]);
-				type_str = tmp;
-			} else if (s->v[i].mod & TYPEDEF_BIT) {
-				snprintf(tmp, 256, "%s", typedef_tab[s->v[i].mod & ~TYPEDEF_BIT]);
-				type_str = tmp;
-			} else {
-				fprintf(stream, "what the F?");
-				goto T;
-			}
-		} else if (s->v[i].type == 1) {
-			type_str = "struct entity_s *";
-			space = 0;
-		}
-		fprintf(
-			stream,
-			"\t%s%s%s;\n",
-			type_str, space ? " " : "",
-			s->v[i].name
-		);
-T:
-		;
-	}
-	fprintf(stream, "} effect_%s_data;\n", s->name);
+	consume_buf[c] = '\0';
 	return 0;
 }
 
-int put_loader(FILE *stream, struct_tag *s) {
+void consume(FILE *inp) {
+	if (consume_end(inp))
+		die("Unexpected EOF\n");
+}
+
+typedef struct decl_field_t {
+	int type_tag;
+	char type_name[MAX_NAME_LEN];
+	char name[MAX_NAME_LEN];
+	struct decl_field_t *next;
+} decl_field_t;
+
+typedef struct decl_t {
+	char name[MAX_NAME_LEN];
+	decl_field_t *fields;
+	decl_field_t *last_field;
+} decl_t;
+
+decl_t *decls = NULL;
+size_t decl_cap = 0, decl_n = 0;
+
+void add_decl_field(decl_t *d, int type_tag, const char *type_name, const char *name) {
+	decl_field_t *x = m_malloc(sizeof(decl_field_t));
+	x->type_tag = type_tag;
+	strncpy(x->type_name, type_name, MAX_NAME_LEN);
+	strncpy(x->name, name, MAX_NAME_LEN);
+	x->next = NULL;
+	if (d == NULL)
+		die("Fuck\n");
+	if (d->fields == NULL)
+		d->fields = x;
+	if (d->last_field != NULL)
+		d->last_field->next = x;
+	d->last_field = x;
+}
+
+int test_comment(FILE *inp) {
+	if (strcmp(consume_buf, "#/"))
+		return 0;
+	int ch;
+	while ((ch = fgetc(inp)) != -1) {
+		if (ch == '\n')
+			break;
+	}
+	return 1;
+}
+
+int test_decl(FILE *inp) {
+	if (strcmp(consume_buf, "decl-s"))
+		return 0;
+	consume(inp);
+	if (!m_name(consume_buf)) {
+		fprintf(stderr, "Bad name `%s'", consume_buf);
+		exit(1);
+	}
+	decl_n++;
+	if (decl_n > decl_cap) {
+		size_t decl_cap_new = decl_cap * 2;
+		if (decl_cap_new == 0)
+			decl_cap_new = 1;
+		decls = realloc(decls, decl_cap_new * sizeof(*decls));
+		decl_cap = decl_cap_new;
+		if (decls == NULL)
+			die("Bad realloc\n");
+	}
+	strncpy(decls[decl_n - 1].name, consume_buf, MAX_NAME_LEN);
+	decls[decl_n - 1].fields = NULL;
+	decls[decl_n - 1].last_field = NULL;
+	static char type_name[MAX_NAME_LEN];
+	int type_tag = 0, name_w = 0;
+	while (1) {
+		consume(inp);
+		if (!strcmp(":", consume_buf))
+			return 1;
+		if (name_w) {
+			if (!m_name(consume_buf)) {
+				fprintf(stderr, "Bad name `%s'\n", consume_buf);
+				exit(1);
+			}
+			add_decl_field(&decls[decl_n - 1], type_tag, type_name, consume_buf);
+			name_w = 0;
+			type_tag = 0;
+		} else {
+			if (!strcmp("'E", consume_buf)) {
+				type_tag |= ENUM_TAG;
+			} else if (!strcmp("'T", consume_buf)) {
+				;
+			} else if (!strcmp("ent-r", consume_buf)) {
+				type_tag |= ENT_R_TAG;
+				type_name[0] = '\0';
+				name_w = 1;
+			} else if (!strcmp("ent-n", consume_buf)) {
+				type_tag |= ENT_N_TAG;
+				type_name[0] = '\0';
+				name_w = 1;
+			} else if (m_name(consume_buf)) {
+				strncpy(type_name, consume_buf, MAX_NAME_LEN);
+				name_w = 1;
+			} else {
+				fprintf(stderr, "Unmatching word `%s'\n", consume_buf);
+				exit(1);
+			}
+		}
+	}
+}
+
+int parse_base(FILE *inp) {
+	if (consume_end(inp))
+		return 0;
+	if (test_comment(inp))
+		return 1;
+	if (test_decl(inp))
+		return 1;
+	fprintf(stderr, "Unrecognised top-level word: `%s'\n", consume_buf);
+	exit(1);
+}
+
+void put_struct(FILE *to, decl_t *d) {
+	fprintf(to, "typedef struct effect_%s_data {\n", d->name);
+	decl_field_t *p = d->fields;
+	while (p != NULL) {
+		const char *type_str;
+		int space = 1;
+		static char tmp[256];
+		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
+			type_str = "struct entity_s *";
+			space = 0;
+		} else if (p->type_tag == ENUM_TAG) {
+			snprintf(tmp, 256, "enum %s", p->type_name);
+			type_str = tmp;
+		} else {
+			type_str = p->type_name;
+		}
+		fprintf(
+			to,
+			"\t%s%s%s;\n",
+			type_str, space ? " " : "",
+			p->name
+		);
+		p = p->next;
+	}
+	fprintf(to, "} effect_%s_data;\n", d->name);
+}
+
+void put_loader(FILE *to, decl_t *d) {
 	fprintf(
-		stream,
+		to,
 		"void effect_scan_%s(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {\n"
 		"\t(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;\n"
 		"\teffect_%s_data *d = (void*)e->data;\n",
-		s->name,
-		s->name
+		d->name,
+		d->name
 	);
-	for (int i = 0; i < s->n; i++) {
-		if (s->v[i].type == 0) {
-			if (s->v[i].mod & TYPEDEF_BIT) {
-				fprintf(stream, "\tfread(&d->%s, sizeof(%s), 1, stream);\n", s->v[i].name, typedef_tab[s->v[i].mod & ~TYPEDEF_BIT]);
-			} else {
-				fprintf(stream, "\tfread(&d->%s, sizeof(int), 1, stream);\n", s->v[i].name);
-			}
-		} else if (s->v[i].type == 1) {
-			fprintf(stream, "\t{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->%s = NULL; else d->%s = a_ent[t]; }\n", s->v[i].name, s->v[i].name);
+	decl_field_t *p = d->fields;
+	while (p != NULL) {
+		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
+			fprintf(to, "\t{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->%s = NULL; else d->%s = a_ent[t]; }\n", p->name, p->name);
+		} else if (p->type_tag == ENUM_TAG) {
+			fprintf(to, "\tfread(&d->%s, sizeof(int), 1, stream);\n", p->name);
+		} else {
+			fprintf(to, "\tfread(&d->%s, sizeof(%s), 1, stream);\n", p->name, p->type_name);
 		}
+		p = p->next;
 	}
-	fprintf(stream, "}\n");
-	return 0;
+	fprintf(to, "}\n");
 }
 
-int put_dumper(FILE *stream, struct_tag *s) {
+void put_dumper(FILE *to, decl_t *d) {
 	fprintf(
-		stream,
+		to,
 		"void effect_dump_%s(effect_s *e, FILE *stream) {\n"
 		"\teffect_%s_data *d = (void*)e->data;\n",
-		s->name,
-		s->name
+		d->name,
+		d->name
 	);
-	for (int i = 0; i < s->n; i++) {
-		if (s->v[i].type == 0) {
-			if (s->v[i].mod & TYPEDEF_BIT) {
-				fprintf(stream, "\tfwrite(&d->%s, sizeof(%s), 1, stream);\n", s->v[i].name, typedef_tab[s->v[i].mod & ~TYPEDEF_BIT]);
-			} else {
-				fprintf(stream, "\tfwrite(&d->%s, sizeof(int), 1, stream);\n", s->v[i].name);
-			}
-		} else if (s->v[i].type == 1) {
-			fprintf(stream, "\t{ int t; if (d->%s == NULL){t = -1;}else{t = entity_get_index(d->%s);} fwrite(&t, sizeof(int), 1, stream); }\n", s->v[i].name, s->v[i].name);
+	decl_field_t *p = d->fields;
+	while (p != NULL) {
+		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
+			fprintf(to, "\t{ int t; if (d->%s == NULL){t = -1;}else{t = entity_get_index(d->%s);} fwrite(&t, sizeof(int), 1, stream); }\n", p->name, p->name);
+		} else if (p->type_tag == ENUM_TAG) {
+			fprintf(to, "\tfwrite(&d->%s, sizeof(int), 1, stream);\n", p->name);
+		} else {
+			fprintf(to, "\tfwrite(&d->%s, sizeof(%s), 1, stream);\n", p->name, p->type_name);
 		}
+		p = p->next;
 	}
-	fprintf(stream, "}\n");
-	return 0;
+	fprintf(to, "}\n");
 }
 
 int main(int argc, char **argv) {
-	FILE *output_struct = NULL;
-	FILE *output_func = NULL;
-	FILE *inp = stdin;
-	{
-		int i = 1;
-		for (; i < argc; i++) {
-			if (!strcmp(argv[i], ".s")) {
-				if (i == argc - 1) {
-					fprintf(stderr, "expected filename\n");
-					return 1;
-				}
-				output_struct = fopen(argv[i + 1], "w");
-				if (output_struct == NULL) {
-					perror("failed to open struct file");
-					return 1;
-				}
-				i++;
-			} else if (!strcmp(argv[i], ".f")) {
-				if (i == argc - 1) {
-					fprintf(stderr, "expected filename\n");
-					return 1;
-				}
-				output_func = fopen(argv[i + 1], "w");
-				if (output_func == NULL) {
-					perror("failed to open function file");
-					return 1;
-				}
-				i++;
-			} else if (!strcmp(argv[i], ".inp")) {
-				if (i == argc - 1) {
-					fprintf(stderr, "expected filename\n");
-					return 1;
-				}
-				inp = fopen(argv[i + 1], "r");
-				if (inp == NULL) {
-					perror("failed to open input file");
-					return 1;
-				}
-				i++;
-			}
-		}
-	}
-	if (output_struct == NULL) {
-		fprintf(stderr, "no struct file\n");
-		return 1;
-	}
-	if (output_func == NULL) {
-		fprintf(stderr, "no function file\n");
-		return 1;
-	}
-	static char buf[1024];
-	int get_r = 0;
-	int bad = 0;
-	int bad1 = 0;
-	struct_tag st;
-	variable_tag vt;
-	const char *autogen_warn = "/* This file is automatically generated with util/structgen */\n";
-	fprintf(output_struct, autogen_warn);
-	fprintf(output_func, autogen_warn);
-	while (!(get_r = m_get_token(inp, buf, 1024))) {
-		if (!strcmp("#/", buf)) {
-			int ch;
-			while ((ch = getc(inp)) != -1)
-				if (ch == '\n') break;
-		} else if (!strcmp("decl-s", buf)) {
-			if ((get_r = m_get_token(inp, st.name, 64))) {
-				goto B;
-			}
-			if (!m_is_c_word(st.name)) {
-				fprintf(stderr, "not c word: '%s'\n", st.name);
-				bad1 = 2;
-				goto B;
-			}
-			st.n = 0;
-			st.v = NULL;
-			vt.type = -1;
-			while (!(get_r = m_get_token(inp, buf, 1024))) {
-				if (!strcmp(":", buf)) {
-					break;
-				} else if (!strcmp("int", buf)) {
-					if (vt.type == -1) {
-						vt.type = 0;
-						vt.mod = 0;
-					} else {
-						bad1 = 3;
-						goto B;
-					}
-				} else if (!strcmp("ent-r", buf)) {
-					if (vt.type == -1) {
-						vt.type = 1;
-						vt.mod = 0;
-					} else {
-						bad1 = 3;
-						goto B;
-					}
-				} else if (!strcmp("ent-n", buf)) {
-					if (vt.type == -1) {
-						vt.type = 1;
-						vt.mod = 1;
-					} else {
-						bad1 = 3;
-						goto B;
-					}
-				} else if (!strcmp("'E", buf)) {
-					if ((get_r = m_get_token(inp, buf, 1024))) {
-						goto B;
-					}
-					int e = tab_pull(enum_tab, buf);
-					if (e == -1) {
-						bad1 = 6;
-						goto B;
-					} else if (e == -2) {
-						bad1 = 7;
-						goto B;
-					} else if (e < 0) {
-						fprintf(stderr, "error: unknown what?\n");
-						goto B;
-					}
-					if (vt.type == -1) {
-						vt.type = 0;
-						vt.mod = ENUM_BIT | e;
-					} else {
-						bad1 = 3;
-						goto B;
-					}
-				} else if (!strcmp("'T", buf)) {
-					if ((get_r = m_get_token(inp, buf, 1024))) {
-						goto B;
-					}
-					int e = tab_pull(typedef_tab, buf);
-					if (e == -1) {
-						bad1 = 6;
-						goto B;
-					} else if (e == -2) {
-						bad1 = 7;
-						goto B;
-					} else if (e < 0) {
-						fprintf(stderr, "error: unknown what?\n");
-						goto B;
-					}
-					if (vt.type == -1) {
-						vt.type = 0;
-						vt.mod = TYPEDEF_BIT | e;
-					} else {
-						bad1 = 3;
-						goto B;
-					}
-				} else if (m_is_c_word(buf)) {
-					if (strlen(buf) >= 64) {
-						bad1 = 5;
-						goto B;
-					}
-					strcpy(vt.name, buf);
-					if (!(st.n & 15)) {
-						st.v = realloc(st.v, st.n + 16 * sizeof(variable_tag));
-					}
-					st.v[st.n++] = vt;
-					vt.type = -1;
-					} else {
-						bad1 = 2;
-					goto B;
-				}
-			}
-			if (get_r) {
-				bad = 1;
-				goto B;
-			}
-			if (vt.type != -1) {
-				bad = 4;
-				goto B;
-			}
-			printf("!! struct %s\n", st.name);
-			put_struct(output_struct, &st);
-			printf("!! loader %s\n", st.name);
-			put_loader(output_func, &st);
-			printf("!! dumper %s\n", st.name);
-			put_dumper(output_func, &st);
+	const char *struct_name = NULL, *func_name = NULL, *inp_name = NULL;
+	int i;
+	for (i = 0; i < argc; i++) {
+		if (!strcmp(argv[i], ".s")) {
+			if (i + 1 >= argc)
+				die("Expected filename after .s\n");
+			struct_name = argv[i + 1];
+			i++;
+		} else if (!strcmp(argv[i], ".f")) {
+			if (i + 1 >= argc)
+				die("Expected filename after .f\n");
+			func_name = argv[i + 1];
+			i++;
+		} else if (!strcmp(argv[i], ".inp")) {
+			if (i + 1 >= argc)
+				die("Expected filename after .inp\n");
+			inp_name = argv[i + 1];
+			i++;
 		} else {
-			bad1 = 1;
-			goto B;
+			fprintf(stderr, "Unknown parameter `%s'\n", argv[i]);
 		}
 	}
-B:
-	if (bad1 == 1) {
-		fprintf(stderr, "error: invalid token in root level\n");
-	} else if (bad1 == 2) {
-		fprintf(stderr, "error: expected a C word\n");
-	} else if (bad1 == 3) {
-		fprintf(stderr, "error: why two types?\n");
-	} else if (bad1 == 4) {
-		fprintf(stderr, "error: trailing type\n");
-	} else if (bad1 == 5) {
-		fprintf(stderr, "error: too long name\n");
-	} else if (bad1 == 6) {
-		fprintf(stderr, "error: enum limit\n");
-	} else if (bad1 == 7) {
-		fprintf(stderr, "errror: malloc\n");
+	FILE *struct_file = struct_name != NULL ? m_open(struct_name, "w") : NULL;
+	FILE *func_file = func_name != NULL ? m_open(func_name, "w") : NULL;
+	if (struct_file == NULL && func_file == NULL) {
+		fprintf(stderr, "Zero output files specified, aborting\n");
+		return 0;
 	}
-	if (get_r == m_get_token_overlength) {
-		fprintf(stderr, "error: token too long\n");
+	FILE *inp = inp_name != NULL ? m_open(inp_name, "r") : stdin;
+	while (parse_base(inp))
+		;
+	const char *autogen_warn = "/* This file is automatically generated with util/structgen */\n";
+	if (struct_file != NULL)
+		fprintf(struct_file, autogen_warn);
+	if (func_file != NULL)
+		fprintf(func_file, autogen_warn);
+	{
+		size_t i;
+		for (i = 0; i < decl_n; i++) {
+			if (struct_file != NULL) {
+				printf("!! struct %s\n", decls[i].name);
+				put_struct(struct_file, &decls[i]);
+			}
+			if (func_file != NULL) {
+				printf("!! loader %s\n", decls[i].name);
+				put_loader(func_file, &decls[i]);
+				printf("!! dumper %s\n", decls[i].name);
+				put_dumper(func_file, &decls[i]);
+			}
+		}
 	}
-	if (bad && get_r == m_get_token_eof) {
-		fprintf(stderr, "error: unexpected EOF\n");
-	}
-	return 0;
 }

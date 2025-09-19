@@ -33,4 +33,4 @@ main.o:
 
 .PHONY: clean
 clean:
-	rm -f $(OBJ) efsa
+	rm -f $(OBJ) efsa util/structgen
