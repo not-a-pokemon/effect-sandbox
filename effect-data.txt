@@ -1,24 +1,33 @@
 #/ comment if it starts with #/ to end of line
 
-decl-s b_index int index :
+decl-s b_nonexistent 'empty :
+decl-s b_index
+	#/ b_index is not for dumping in files
+	#/ entity indices are stored in a different way
+	int index :
+decl-s ph_block 'external :
 decl-s ph_item int x int y int z int weight ent-r parent 'T parent_ref_type parent_type :
+decl-s falling 'empty :
 decl-s tracer int x int y int z int cur_x int cur_y int cur_z int speed :
 decl-s block_move int x int y int z int delay :
 decl-s stair_move int dir int delay :
 decl-s render 'T char chr 'T uint8_t r 'T uint8_t g 'T uint8_t b 'T uint8_t a :
+decl-s nophysics 'empty :
 decl-s limb_slot ent-n item 'T uint32_t tag :
 decl-s limb_hand int grab_type ent-n item :
-decl-s punch ent-r ent int delay :
+decl-s limb_leg 'empty :
 decl-s material 'T material_type type int dur :
-decl-s size_scale int scale :
 decl-s aim int x int y int z ent-n ent :
 decl-s attack ent-r ent int type int delay ent-r tool :
+decl-s table 'empty :
 decl-s table_item ent-r item :
-decl-s s_punch ent-r ent :
+decl-s fire 'empty :
+decl-s s_touch 'empty :
 decl-s s_bump ent-r ent int force :
 decl-s s_dmg 'E damage_type type int val :
 decl-s rotation 'T rotation_type type int rotation :
 decl-s a_pressure_plate int thresold :
+decl-s a_circle_move 'empty :
 
 decl-s m_grab int eff_tag ent-r ent :
 decl-s m_drop int eff_tag :
@@ -36,6 +45,10 @@ decl-s m_aim_for
 	int z
 	ent-r ent :
 decl-s m_touch int eff_tag ent-r ent :
+
+decl-s r_touch_rng_tp 'empty :
+decl-s r_touch_toggle_block 'empty :
+decl-s r_touch_shoot_projectile 'empty :
 
 decl-s stats
 	int str

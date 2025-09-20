@@ -113,17 +113,6 @@ void effect_dump_limb_hand(effect_s *e, FILE *stream) {
 	fwrite(&d->grab_type, sizeof(int), 1, stream);
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
 }
-void effect_scan_punch(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
-	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
-	effect_punch_data *d = (void*)e->data;
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
-	fread(&d->delay, sizeof(int), 1, stream);
-}
-void effect_dump_punch(effect_s *e, FILE *stream) {
-	effect_punch_data *d = (void*)e->data;
-	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
-	fwrite(&d->delay, sizeof(int), 1, stream);
-}
 void effect_scan_material(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
 	effect_material_data *d = (void*)e->data;
@@ -134,15 +123,6 @@ void effect_dump_material(effect_s *e, FILE *stream) {
 	effect_material_data *d = (void*)e->data;
 	fwrite(&d->type, sizeof(material_type), 1, stream);
 	fwrite(&d->dur, sizeof(int), 1, stream);
-}
-void effect_scan_size_scale(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
-	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
-	effect_size_scale_data *d = (void*)e->data;
-	fread(&d->scale, sizeof(int), 1, stream);
-}
-void effect_dump_size_scale(effect_s *e, FILE *stream) {
-	effect_size_scale_data *d = (void*)e->data;
-	fwrite(&d->scale, sizeof(int), 1, stream);
 }
 void effect_scan_aim(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
@@ -182,15 +162,6 @@ void effect_scan_table_item(effect_s *e, int n_ent, entity_s **a_ent, int n_eff,
 void effect_dump_table_item(effect_s *e, FILE *stream) {
 	effect_table_item_data *d = (void*)e->data;
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
-}
-void effect_scan_s_punch(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
-	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
-	effect_s_punch_data *d = (void*)e->data;
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
-}
-void effect_dump_s_punch(effect_s *e, FILE *stream) {
-	effect_s_punch_data *d = (void*)e->data;
-	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 }
 void effect_scan_s_bump(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;
@@ -365,3 +336,129 @@ void effect_dump_wet(effect_s *e, FILE *stream) {
 	fwrite(&d->type, sizeof(int), 1, stream);
 	fwrite(&d->amount, sizeof(int), 1, stream);
 }
+
+int effect_data_size[] = {
+	[EF_B_NONEXISTENT] = 0,
+	[EF_B_INDEX] = sizeof(effect_b_index_data),
+	[EF_PH_BLOCK] = sizeof(effect_ph_block_data),
+	[EF_PH_ITEM] = sizeof(effect_ph_item_data),
+	[EF_FALLING] = 0,
+	[EF_TRACER] = sizeof(effect_tracer_data),
+	[EF_BLOCK_MOVE] = sizeof(effect_block_move_data),
+	[EF_STAIR_MOVE] = sizeof(effect_stair_move_data),
+	[EF_RENDER] = sizeof(effect_render_data),
+	[EF_NOPHYSICS] = 0,
+	[EF_LIMB_SLOT] = sizeof(effect_limb_slot_data),
+	[EF_LIMB_HAND] = sizeof(effect_limb_hand_data),
+	[EF_LIMB_LEG] = 0,
+	[EF_MATERIAL] = sizeof(effect_material_data),
+	[EF_AIM] = sizeof(effect_aim_data),
+	[EF_ATTACK] = sizeof(effect_attack_data),
+	[EF_TABLE] = 0,
+	[EF_TABLE_ITEM] = sizeof(effect_table_item_data),
+	[EF_FIRE] = 0,
+	[EF_S_TOUCH] = 0,
+	[EF_S_BUMP] = sizeof(effect_s_bump_data),
+	[EF_S_DMG] = sizeof(effect_s_dmg_data),
+	[EF_ROTATION] = sizeof(effect_rotation_data),
+	[EF_A_PRESSURE_PLATE] = sizeof(effect_a_pressure_plate_data),
+	[EF_A_CIRCLE_MOVE] = 0,
+	[EF_M_GRAB] = sizeof(effect_m_grab_data),
+	[EF_M_DROP] = sizeof(effect_m_drop_data),
+	[EF_M_PUT] = sizeof(effect_m_put_data),
+	[EF_M_THROW] = sizeof(effect_m_throw_data),
+	[EF_M_AIM_FOR] = sizeof(effect_m_aim_for_data),
+	[EF_M_TOUCH] = sizeof(effect_m_touch_data),
+	[EF_R_TOUCH_RNG_TP] = 0,
+	[EF_R_TOUCH_TOGGLE_BLOCK] = 0,
+	[EF_R_TOUCH_SHOOT_PROJECTILE] = 0,
+	[EF_STATS] = sizeof(effect_stats_data),
+	[EF_PH_LIQUID] = sizeof(effect_ph_liquid_data),
+	[EF_CONTAINER] = sizeof(effect_container_data),
+	[EF_CONTAINER_ITEM] = sizeof(effect_container_item_data),
+	[EF_WET] = sizeof(effect_wet_data),
+};
+
+effect_dump_t effect_dump_functions[] = {
+	[EF_B_NONEXISTENT] = NULL,
+	[EF_B_INDEX] = effect_dump_b_index,
+	[EF_PH_BLOCK] = effect_dump_ph_block,
+	[EF_PH_ITEM] = effect_dump_ph_item,
+	[EF_FALLING] = NULL,
+	[EF_TRACER] = effect_dump_tracer,
+	[EF_BLOCK_MOVE] = effect_dump_block_move,
+	[EF_STAIR_MOVE] = effect_dump_stair_move,
+	[EF_RENDER] = effect_dump_render,
+	[EF_NOPHYSICS] = NULL,
+	[EF_LIMB_SLOT] = effect_dump_limb_slot,
+	[EF_LIMB_HAND] = effect_dump_limb_hand,
+	[EF_LIMB_LEG] = NULL,
+	[EF_MATERIAL] = effect_dump_material,
+	[EF_AIM] = effect_dump_aim,
+	[EF_ATTACK] = effect_dump_attack,
+	[EF_TABLE] = NULL,
+	[EF_TABLE_ITEM] = effect_dump_table_item,
+	[EF_FIRE] = NULL,
+	[EF_S_TOUCH] = NULL,
+	[EF_S_BUMP] = effect_dump_s_bump,
+	[EF_S_DMG] = effect_dump_s_dmg,
+	[EF_ROTATION] = effect_dump_rotation,
+	[EF_A_PRESSURE_PLATE] = effect_dump_a_pressure_plate,
+	[EF_A_CIRCLE_MOVE] = NULL,
+	[EF_M_GRAB] = effect_dump_m_grab,
+	[EF_M_DROP] = effect_dump_m_drop,
+	[EF_M_PUT] = effect_dump_m_put,
+	[EF_M_THROW] = effect_dump_m_throw,
+	[EF_M_AIM_FOR] = effect_dump_m_aim_for,
+	[EF_M_TOUCH] = effect_dump_m_touch,
+	[EF_R_TOUCH_RNG_TP] = NULL,
+	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
+	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_STATS] = effect_dump_stats,
+	[EF_PH_LIQUID] = effect_dump_ph_liquid,
+	[EF_CONTAINER] = effect_dump_container,
+	[EF_CONTAINER_ITEM] = effect_dump_container_item,
+	[EF_WET] = effect_dump_wet,
+};
+
+effect_scan_t effect_scan_functions[] = {
+	[EF_B_NONEXISTENT] = NULL,
+	[EF_B_INDEX] = effect_scan_b_index,
+	[EF_PH_BLOCK] = effect_scan_ph_block,
+	[EF_PH_ITEM] = effect_scan_ph_item,
+	[EF_FALLING] = NULL,
+	[EF_TRACER] = effect_scan_tracer,
+	[EF_BLOCK_MOVE] = effect_scan_block_move,
+	[EF_STAIR_MOVE] = effect_scan_stair_move,
+	[EF_RENDER] = effect_scan_render,
+	[EF_NOPHYSICS] = NULL,
+	[EF_LIMB_SLOT] = effect_scan_limb_slot,
+	[EF_LIMB_HAND] = effect_scan_limb_hand,
+	[EF_LIMB_LEG] = NULL,
+	[EF_MATERIAL] = effect_scan_material,
+	[EF_AIM] = effect_scan_aim,
+	[EF_ATTACK] = effect_scan_attack,
+	[EF_TABLE] = NULL,
+	[EF_TABLE_ITEM] = effect_scan_table_item,
+	[EF_FIRE] = NULL,
+	[EF_S_TOUCH] = NULL,
+	[EF_S_BUMP] = effect_scan_s_bump,
+	[EF_S_DMG] = effect_scan_s_dmg,
+	[EF_ROTATION] = effect_scan_rotation,
+	[EF_A_PRESSURE_PLATE] = effect_scan_a_pressure_plate,
+	[EF_A_CIRCLE_MOVE] = NULL,
+	[EF_M_GRAB] = effect_scan_m_grab,
+	[EF_M_DROP] = effect_scan_m_drop,
+	[EF_M_PUT] = effect_scan_m_put,
+	[EF_M_THROW] = effect_scan_m_throw,
+	[EF_M_AIM_FOR] = effect_scan_m_aim_for,
+	[EF_M_TOUCH] = effect_scan_m_touch,
+	[EF_R_TOUCH_RNG_TP] = NULL,
+	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
+	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_STATS] = effect_scan_stats,
+	[EF_PH_LIQUID] = effect_scan_ph_liquid,
+	[EF_CONTAINER] = effect_scan_container,
+	[EF_CONTAINER_ITEM] = effect_scan_container_item,
+	[EF_WET] = effect_scan_wet,
+};

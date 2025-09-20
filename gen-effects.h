@@ -44,17 +44,10 @@ typedef struct effect_limb_hand_data {
 	int grab_type;
 	struct entity_s *item;
 } effect_limb_hand_data;
-typedef struct effect_punch_data {
-	struct entity_s *ent;
-	int delay;
-} effect_punch_data;
 typedef struct effect_material_data {
 	material_type type;
 	int dur;
 } effect_material_data;
-typedef struct effect_size_scale_data {
-	int scale;
-} effect_size_scale_data;
 typedef struct effect_aim_data {
 	int x;
 	int y;
@@ -70,9 +63,6 @@ typedef struct effect_attack_data {
 typedef struct effect_table_item_data {
 	struct entity_s *item;
 } effect_table_item_data;
-typedef struct effect_s_punch_data {
-	struct entity_s *ent;
-} effect_s_punch_data;
 typedef struct effect_s_bump_data {
 	struct entity_s *ent;
 	int force;
@@ -137,3 +127,45 @@ typedef struct effect_wet_data {
 	enum liquid_type type;
 	int amount;
 } effect_wet_data;
+typedef enum effect_type {
+	EF_B_NONEXISTENT,
+	EF_B_INDEX,
+	EF_PH_BLOCK,
+	EF_PH_ITEM,
+	EF_FALLING,
+	EF_TRACER,
+	EF_BLOCK_MOVE,
+	EF_STAIR_MOVE,
+	EF_RENDER,
+	EF_NOPHYSICS,
+	EF_LIMB_SLOT,
+	EF_LIMB_HAND,
+	EF_LIMB_LEG,
+	EF_MATERIAL,
+	EF_AIM,
+	EF_ATTACK,
+	EF_TABLE,
+	EF_TABLE_ITEM,
+	EF_FIRE,
+	EF_S_TOUCH,
+	EF_S_BUMP,
+	EF_S_DMG,
+	EF_ROTATION,
+	EF_A_PRESSURE_PLATE,
+	EF_A_CIRCLE_MOVE,
+	EF_M_GRAB,
+	EF_M_DROP,
+	EF_M_PUT,
+	EF_M_THROW,
+	EF_M_AIM_FOR,
+	EF_M_TOUCH,
+	EF_R_TOUCH_RNG_TP,
+	EF_R_TOUCH_TOGGLE_BLOCK,
+	EF_R_TOUCH_SHOOT_PROJECTILE,
+	EF_STATS,
+	EF_PH_LIQUID,
+	EF_CONTAINER,
+	EF_CONTAINER_ITEM,
+	EF_WET,
+	EF_UNKNOWN = -1
+} effect_type;

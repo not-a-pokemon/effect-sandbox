@@ -96,6 +96,8 @@ typedef struct decl_field_t {
 
 typedef struct decl_t {
 	char name[MAX_NAME_LEN];
+	unsigned empty:1;
+	unsigned exter:1;
 	decl_field_t *fields;
 	decl_field_t *last_field;
 } decl_t;
@@ -150,13 +152,16 @@ int test_decl(FILE *inp) {
 	strncpy(decls[decl_n - 1].name, consume_buf, MAX_NAME_LEN);
 	decls[decl_n - 1].fields = NULL;
 	decls[decl_n - 1].last_field = NULL;
+	decls[decl_n - 1].empty = 0;
 	static char type_name[MAX_NAME_LEN];
 	int type_tag = 0, name_w = 0;
 	while (1) {
 		consume(inp);
 		if (!strcmp(":", consume_buf))
 			return 1;
-		if (name_w) {
+		if (test_comment(inp)) {
+			;
+		} else if (name_w) {
 			if (!m_name(consume_buf)) {
 				fprintf(stderr, "Bad name `%s'\n", consume_buf);
 				exit(1);
@@ -166,15 +171,19 @@ int test_decl(FILE *inp) {
 			type_tag = 0;
 		} else {
 			if (!strcmp("'E", consume_buf)) {
-				type_tag |= ENUM_TAG;
+				type_tag = ENUM_TAG;
 			} else if (!strcmp("'T", consume_buf)) {
 				;
+			} else if (!strcmp("'empty", consume_buf)) {
+				decls[decl_n - 1].empty = 1;
+			} else if (!strcmp("'external", consume_buf)) {
+				decls[decl_n - 1].exter = 1;
 			} else if (!strcmp("ent-r", consume_buf)) {
-				type_tag |= ENT_R_TAG;
+				type_tag = ENT_R_TAG;
 				type_name[0] = '\0';
 				name_w = 1;
 			} else if (!strcmp("ent-n", consume_buf)) {
-				type_tag |= ENT_N_TAG;
+				type_tag = ENT_N_TAG;
 				type_name[0] = '\0';
 				name_w = 1;
 			} else if (m_name(consume_buf)) {
@@ -274,24 +283,31 @@ void put_dumper(FILE *to, decl_t *d) {
 int main(int argc, char **argv) {
 	const char *struct_name = NULL, *func_name = NULL, *inp_name = NULL;
 	int i;
-	for (i = 0; i < argc; i++) {
+	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], ".s")) {
+			if (inp_name != NULL)
+				die("Duplitcate .s\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .s\n");
 			struct_name = argv[i + 1];
 			i++;
 		} else if (!strcmp(argv[i], ".f")) {
+			if (inp_name != NULL)
+				die("Duplitcate .f\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .f\n");
 			func_name = argv[i + 1];
 			i++;
 		} else if (!strcmp(argv[i], ".inp")) {
+			if (inp_name != NULL)
+				die("Duplitcate .inp\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .inp\n");
 			inp_name = argv[i + 1];
 			i++;
 		} else {
 			fprintf(stderr, "Unknown parameter `%s'\n", argv[i]);
+			return 1;
 		}
 	}
 	FILE *struct_file = struct_name != NULL ? m_open(struct_name, "w") : NULL;
@@ -311,6 +327,8 @@ int main(int argc, char **argv) {
 	{
 		size_t i;
 		for (i = 0; i < decl_n; i++) {
+			if (decls[i].empty || decls[i].exter)
+				continue;
 			if (struct_file != NULL) {
 				printf("!! struct %s\n", decls[i].name);
 				put_struct(struct_file, &decls[i]);
@@ -322,5 +340,73 @@ int main(int argc, char **argv) {
 				put_dumper(func_file, &decls[i]);
 			}
 		}
+	}
+	if (struct_file != NULL) {
+		fprintf(struct_file, "typedef enum effect_type {\n");
+		size_t i, j;
+		for (i = 0; i < decl_n; i++) {
+			fprintf(struct_file, "\tEF_");
+			for (j = 0; decls[i].name[j]; j++) {
+				fputc(toupper(decls[i].name[j]), struct_file);
+			}
+			fprintf(struct_file, ",\n");
+		}
+		fprintf(struct_file, "\tEF_UNKNOWN = -1\n} effect_type;\n");
+	}
+	if (func_file != NULL) {
+		size_t i, j;
+		fprintf(func_file, "\nint effect_data_size[] = {\n");
+		for (i = 0; i < decl_n; i++) {
+			fprintf(func_file, "\t[EF_");
+			for (j = 0; decls[i].name[j]; j++) {
+				fputc(toupper(decls[i].name[j]), func_file);
+			}
+			fprintf(func_file, "] = ");
+			if (decls[i].empty) {
+				fprintf(func_file, "0");
+			} else {
+				fprintf(func_file, "sizeof(effect_");
+				for (j = 0; decls[i].name[j]; j++) {
+					fputc(decls[i].name[j], func_file);
+				}
+				fprintf(func_file, "_data)");
+			}
+			fprintf(func_file, ",\n");
+		}
+		fprintf(func_file, "};\n");
+		fprintf(func_file, "\neffect_dump_t effect_dump_functions[] = {\n");
+		for (i = 0; i < decl_n; i++) {
+			fprintf(func_file, "\t[EF_");
+			for (j = 0; decls[i].name[j]; j++) {
+				fputc(toupper(decls[i].name[j]), func_file);
+			}
+			if (decls[i].empty) {
+				fprintf(func_file, "] = NULL");
+			} else {
+				fprintf(func_file, "] = effect_dump_");
+				for (j = 0; decls[i].name[j]; j++) {
+					fputc(decls[i].name[j], func_file);
+				}
+			}
+			fprintf(func_file, ",\n");
+		}
+		fprintf(func_file, "};\n");
+		fprintf(func_file, "\neffect_scan_t effect_scan_functions[] = {\n");
+		for (i = 0; i < decl_n; i++) {
+			fprintf(func_file, "\t[EF_");
+			for (j = 0; decls[i].name[j]; j++) {
+				fputc(toupper(decls[i].name[j]), func_file);
+			}
+			if (decls[i].empty) {
+				fprintf(func_file, "] = NULL");
+			} else {
+				fprintf(func_file, "] = effect_scan_");
+				for (j = 0; decls[i].name[j]; j++) {
+					fputc(decls[i].name[j], func_file);
+				}
+			}
+			fprintf(func_file, ",\n");
+		}
+		fprintf(func_file, "};\n");
 	}
 }
