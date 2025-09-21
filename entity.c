@@ -375,11 +375,8 @@ void apply_reactions(entity_s *s) {
 			/* effect_ph_item_data *ph_d = (void*)ef2->data; */
 			entity_s *new_ent = o_malloc(sizeof(entity_s));
 			new_ent->effects = NULL;
-			new_ent->prev = NULL;
-			new_ent->next = NULL;
 			{
 				effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-				ef_ph->type = EF_PH_ITEM;
 				effect_ph_item_data *d = (void*)ef_ph->data;
 				entity_coords(s, &d->x, &d->y, &d->z);
 				d->weight = 1;
@@ -388,7 +385,6 @@ void apply_reactions(entity_s *s) {
 			}
 			{
 				effect_s *new_eff = alloc_effect(EF_RENDER);
-				new_eff->type = EF_RENDER;
 				effect_render_data *d = (void*)new_eff->data;
 				d->r = 0;
 				d->b = 100;
@@ -399,7 +395,6 @@ void apply_reactions(entity_s *s) {
 			}
 			{
 				effect_s *new_eff = alloc_effect(EF_TRACER);
-				new_eff->type = EF_TRACER;
 				effect_tracer_data *d = (void*)new_eff->data;
 				d->x = aim_d->x;
 				d->y = aim_d->y;
@@ -412,7 +407,6 @@ void apply_reactions(entity_s *s) {
 			}
 			{
 				effect_s *new_eff = alloc_effect(EF_AIM);
-				new_eff->type = EF_AIM;
 				effect_aim_data *d = (void*)new_eff->data;
 				d->x = 0;
 				d->y = 0;
@@ -476,11 +470,15 @@ void apply_reactions(entity_s *s) {
 				while (t != NULL) {
 					if (t->type == EF_TABLE_ITEM) {
 						effect_table_item_data *d = (void*)t->data;
+						effect_s *tt = t;
 						t = t->next;
 						unparent_entity(d->item);
 						attach_generic_entity(d->item);
-					} else
+						effect_unlink(s, tt);
+						free_effect(tt);
+					} else {
 						t = t->next;
+					}
 				}
 			}
 		}

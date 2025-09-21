@@ -205,9 +205,6 @@ void spawn_simple_floor(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		ef_ph->type = EF_PH_BLOCK;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_block_data *d = (void*)ef_ph->data;
 		d->floor = 1;
 		d->floor_up = 0;
@@ -216,26 +213,17 @@ void spawn_simple_floor(int x, int y, int z) {
 		d->x = x;
 		d->y = y;
 		d->z = z;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
 		d->a = 128;
 		d->chr = '_';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
@@ -244,11 +232,7 @@ void spawn_simple_floor(int x, int y, int z) {
 		d->dur = 10;
 		effect_prepend(new_ent, ef_mat);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -258,9 +242,6 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		ef_ph->type = EF_PH_BLOCK;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_block_data *d = (void*)ef_ph->data;
 		d->floor = 1;
 		d->floor_up = 0;
@@ -269,39 +250,25 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 		d->x = x;
 		d->y = y;
 		d->z = z;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 128;
 		d->g = 128;
 		d->b = 0;
 		d->a = 128;
 		d->chr = '_';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
 	{
 		effect_s *ef_pr = alloc_effect(EF_A_PRESSURE_PLATE);
-		ef_pr->type = EF_A_PRESSURE_PLATE;
 		effect_a_pressure_plate_data *d = (void*)ef_pr->data;
 		d->thresold = w_thresold;
 		effect_prepend(new_ent, ef_pr);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -311,9 +278,6 @@ void spawn_simple_wall(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		ef_ph->type = EF_PH_BLOCK;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_block_data *d = (void*)ef_ph->data;
 		d->floor = 0;
 		d->floor_up = 1;
@@ -322,40 +286,26 @@ void spawn_simple_wall(int x, int y, int z) {
 		d->x = x;
 		d->y = y;
 		d->z = z;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
 		d->a = 128;
 		d->chr = '#';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		ef_mat->type = EF_MATERIAL;
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
 		effect_prepend(new_ent, ef_mat);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -365,9 +315,6 @@ void spawn_simple_door(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		ef_ph->type = EF_PH_BLOCK;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_block_data *d = (void*)ef_ph->data;
 		d->floor = 0;
 		d->floor_up = 1;
@@ -376,50 +323,30 @@ void spawn_simple_door(int x, int y, int z) {
 		d->x = x;
 		d->y = y;
 		d->z = z;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
 		d->a = 128;
 		d->chr = '%';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
 	{
 		effect_s *ef_door = alloc_effect(EF_R_TOUCH_TOGGLE_BLOCK);
-		ef_door->type = EF_R_TOUCH_TOGGLE_BLOCK;
-		ef_door->prev = NULL;
-		ef_door->next = new_ent->effects;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_door;
-		}
-		new_ent->effects = ef_door;
+		effect_prepend(new_ent, ef_door);
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		ef_mat->type = EF_MATERIAL;
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
 		effect_prepend(new_ent, ef_mat);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -430,7 +357,6 @@ void spawn_wood_piece(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-		ef_ph->type = EF_PH_ITEM;
 		effect_ph_item_data *d = (void*)ef_ph->data;
 		d->x = x;
 		d->y = y;
@@ -441,7 +367,6 @@ void spawn_wood_piece(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		ef_mat->type = EF_MATERIAL;
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
@@ -449,7 +374,6 @@ void spawn_wood_piece(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->a = 128;
 		d->r = 128;
@@ -468,9 +392,6 @@ void spawn_simple_stair(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		ef_ph->type = EF_PH_BLOCK;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_block_data *d = (void*)ef_ph->data;
 		d->floor = 0;
 		d->stair = 1;
@@ -479,32 +400,19 @@ void spawn_simple_stair(int x, int y, int z) {
 		d->x = x;
 		d->y = y;
 		d->z = z;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
 		d->a = 128;
 		d->chr = '^';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -514,50 +422,28 @@ void spawn_circle_mover(int x, int y, int z) {
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-		ef_ph->type = EF_PH_ITEM;
-		ef_ph->prev = NULL;
-		ef_ph->next = new_ent->effects;
 		effect_ph_item_data *d = (void*)ef_ph->data;
 		d->x = x;
 		d->y = y;
 		d->z = z;
 		d->weight = 5;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_ph;
-		}
-		new_ent->effects = ef_ph;
+		effect_prepend(new_ent, ef_ph);
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		ef_rend->type = EF_RENDER;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
 		effect_render_data *d = (void*)ef_rend->data;
 		d->r = 0;
 		d->g = 128;
 		d->b = 255;
 		d->a = 128;
 		d->chr = 'q';
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_prepend(new_ent, ef_rend);
 	}
 	{
-		effect_s *ef_rend = alloc_effect(EF_A_CIRCLE_MOVE);
-		ef_rend->type = EF_A_CIRCLE_MOVE;
-		ef_rend->prev = NULL;
-		ef_rend->next = new_ent->effects;
-		if (new_ent->effects != NULL) {
-			new_ent->effects->prev = ef_rend;
-		}
-		new_ent->effects = ef_rend;
+		effect_s *ef_cir = alloc_effect(EF_A_CIRCLE_MOVE);
+		effect_prepend(new_ent, ef_cir);
 	}
-	new_ent->prev = NULL;
-	new_ent->next = g_entities;
-	if (g_entities != NULL) {
-		g_entities->prev = new_ent;
-	}
+	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(new_ent);
 }
@@ -582,27 +468,19 @@ void setup_field(void) {
 		}
 
 		entity_s *new_ent = o_malloc(sizeof(entity_s));
-		new_ent->next = NULL;
-		new_ent->prev = NULL;
 		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
-			ef_ph->prev = NULL;
-			ef_ph->next = new_ent->effects;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 0;
 			d->y = 0;
 			d->z = 0;
 			d->weight = 7;
 			d->parent = NULL;
-			new_ent->effects = ef_ph;
+			effect_prepend(new_ent, ef_ph);
 		}
 		{
 			effect_s *ef_rend = alloc_effect(EF_RENDER);
-			ef_rend->type = EF_RENDER;
-			ef_rend->prev = NULL;
-			ef_rend->next = new_ent->effects;
 			effect_render_data *d = (void*)ef_rend->data;
 			d->r = 255;
 			d->g = 0;
@@ -621,7 +499,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
-			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
 			d->tag = 0;
 			{
@@ -631,11 +508,9 @@ void setup_field(void) {
 				g_entities = e_hand;
 
 				effect_s *ef_hand = alloc_effect(EF_LIMB_LEG);
-				ef_hand->type = EF_LIMB_LEG;
 				effect_prepend(e_hand, ef_hand);
 
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
-				ef_item->type = EF_PH_ITEM;
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
 				dt->parent = new_ent;
@@ -658,13 +533,11 @@ void setup_field(void) {
 				g_entities = e_hand;
 
 				effect_s *ef_hand = alloc_effect(EF_LIMB_HAND);
-				ef_hand->type = EF_LIMB_HAND;
 				effect_limb_hand_data *hand_d = (void*)ef_hand->data;
 				hand_d->item = NULL;
 				effect_prepend(e_hand, ef_hand);
 
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
-				ef_item->type = EF_PH_ITEM;
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
 				dt->parent = new_ent;
@@ -677,7 +550,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
-			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
 			{
 				entity_s *e_hand = o_malloc(sizeof(entity_s));
@@ -686,19 +558,16 @@ void setup_field(void) {
 				g_entities = e_hand;
 
 				effect_s *ef_hand = alloc_effect(EF_LIMB_HAND);
-				ef_hand->type = EF_LIMB_HAND;
 				effect_limb_hand_data *hand_d = (void*)ef_hand->data;
 				hand_d->item = NULL;
 				effect_prepend(e_hand, ef_hand);
 
 				effect_s *ef_mat = alloc_effect(EF_MATERIAL);
 				effect_material_data *mat_d = (void*)ef_mat->data;
-				mat_d->type = MAT_GHOST;
 				mat_d->dur = 10;
 				effect_prepend(e_hand, ef_mat);
 
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
-				ef_item->type = EF_PH_ITEM;
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
 				dt->parent = new_ent;
@@ -709,10 +578,7 @@ void setup_field(void) {
 			}
 			effect_prepend(new_ent, ef_limb_slot);
 		}
-		new_ent->next = g_entities;
-		if (g_entities != NULL) {
-			g_entities->prev = new_ent;
-		}
+		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
 		attach_generic_entity(new_ent);
 	}
