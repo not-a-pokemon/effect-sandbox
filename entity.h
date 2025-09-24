@@ -138,6 +138,7 @@ void apply_attack(entity_s *s);
 
 void apply_gravity(entity_s *s);
 void apply_movement(entity_s *s);
+void apply_liquid_movement(entity_s *s);
 void apply_physics(entity_s *s);
 void apply_triggers(entity_s *s);
 void apply_instants(entity_s *s);
@@ -146,6 +147,7 @@ entity_s* clear_nonexistent(entity_s *s);
 
 int entity_coords(entity_s *s, int *x, int *y, int *z);
 int entity_set_coords(entity_s *s, int x, int y, int z);
+entity_s* entity_copy(entity_s *s);
 
 void detach_entity(entity_s *s, int x, int y, int z);
 void attach_entity(entity_s *s, int x, int y, int z);
@@ -203,5 +205,7 @@ int entity_reachable(entity_s *s, effect_s *limb, entity_s *e);
 int entity_reachable_pos(entity_s *s, effect_s *limb, int x, int y, int z);
 
 entity_s* tracer_check_bump(entity_s *s, int x, int y, int z);
+
+int entity_weight(entity_s *s);
 
 #endif

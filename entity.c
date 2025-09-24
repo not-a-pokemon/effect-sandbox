@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "entity.h"
 #include "omalloc.h"
 #include "rng.h"
@@ -216,11 +217,7 @@ void apply_triggers(entity_s *s) {
 			sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
 			entity_l_s *l = sector_get_block_entities(sec, x, y, z);
 			while (l != NULL) {
-				effect_s *ph = effect_by_type(l->ent->effects, EF_PH_ITEM);
-				if (ph != NULL) {
-					effect_ph_item_data *d = (void*)ph->data;
-					pressure += d->weight;
-				}
+				pressure += entity_weight(l->ent);
 				l = l->next;
 			}
 			effect_s *ph_b = effect_by_type(s->effects, EF_PH_BLOCK);
@@ -667,6 +664,21 @@ int entity_set_coords(entity_s *s, int x, int y, int z) {
 	return 0;
 }
 
+entity_s* entity_copy(entity_s *s) {
+	entity_s *t = o_malloc(sizeof(entity_s));
+	t->effects = NULL;
+	effect_s *e = s->effects;
+	while (e != NULL) {
+		effect_s *z = alloc_effect(e->type);
+		memcpy(z, e, sizeof(effect_s) + effect_data_size[e->type]);
+		effect_prepend(t, z);
+		e = e->next;
+	}
+	entity_prepend(g_entities, t);
+	g_entities = t;
+	return t;
+}
+
 void detach_entity(entity_s *s, int x, int y, int z) {
 	int cx = 0;
 	int cy = 0;
@@ -1036,11 +1048,83 @@ void apply_attack(entity_s *s) {
 	free_effect(e);
 }
 
+void apply_liquid_movement(entity_s *s) {
+	effect_s *li = effect_by_type(s->effects, EF_PH_LIQUID);
+	if (li == NULL)
+		return;
+	effect_ph_liquid_data *li_d = (void*)li->data;
+	int x, y, z;
+	entity_coords(s, &x, &y, &z);
+	if (!block_fallable(x, y, z)) {
+		detach_generic_entity(s);
+		entity_set_coords(s, x, y, z - 1);
+		attach_generic_entity(s);
+		return;
+	}
+	if (li_d->amount > G_PUDDLE_MAX + 3) {
+		int over = li_d->amount - G_PUDDLE_MAX, amount_lost = 0;
+		int valid_dir[4];
+		int ndirs = 0;
+		for (int i = 0; i < 4; i++) {
+			int tx = x, ty = y, tz = z;
+			if (i == 0)
+				tx++;
+			if (i == 2)
+				tx--;
+			if (i == 1)
+				ty++;
+			if (i == 3)
+				ty--;
+			int sx = 0, sy = 0, sz = 0;
+			coord_normalize(&tx, &sx);
+			coord_normalize(&ty, &sy);
+			coord_normalize(&tz, &sz);
+			sector_s *sec = sector_get_sector(g_sectors, sx, sy, sz);
+			valid_dir[i] = !sector_get_block_blocked_movement(sec, tx, ty, tz);
+			if (valid_dir[i])
+				ndirs++;
+		}
+		if (over / ndirs != 0) {
+			for (int i = 0; i < 4; i++) {
+				if (!valid_dir[i])
+					continue;
+				int tx = x, ty = y, tz = z;
+				if (i == 0)
+					tx++;
+				if (i == 2)
+					tx--;
+				if (i == 1)
+					ty++;
+				if (i == 3)
+					ty--;
+				entity_s *dup = entity_copy(s);
+				entity_set_coords(dup, tx, ty, tz);
+				attach_generic_entity(dup);
+				effect_s *dup_liq = effect_by_type(dup->effects, EF_PH_LIQUID);
+				if (dup_liq != NULL) {
+					effect_ph_liquid_data *dup_liq_d = (void*)dup_liq->data;
+					dup_liq_d->amount = over / ndirs;
+					amount_lost += over / ndirs;
+				} else {
+					/* something gone really wrong */
+				}
+			}
+		}
+		li_d->amount -= amount_lost;
+	}
+}
+
 void apply_physics(entity_s *s) {
 	if (effect_by_type(s->effects, EF_NOPHYSICS) == NULL) {
 		apply_movement(s);
-		if (effect_by_type(s->effects, EF_PH_ITEM) != NULL) {
-			apply_gravity(s);
+		effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
+		effect_s *ph_liquid = effect_by_type(s->effects, EF_PH_LIQUID);
+		if (ph_item != NULL) {
+			if (ph_liquid != NULL) {
+				apply_liquid_movement(s);
+			} else {
+				apply_gravity(s);
+			}
 		}
 	}
 	apply_attack(s);
@@ -1874,6 +1958,19 @@ void unparent_entity(entity_s *s) {
 		}
 		d->parent = NULL;
 	}
+}
+
+int entity_weight(entity_s *s) {
+	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
+	if (ph_item == NULL)
+		return 0;
+	effect_ph_item_data *d = (void*)ph_item->data;
+	effect_s *ph_liq = effect_by_type(s->effects, EF_PH_LIQUID);
+	if (ph_liq != NULL) {
+		effect_ph_liquid_data *dl = (void*)ph_liq->data;
+		return dl->amount;
+	}
+	return d->weight;
 }
 
 #include "gen-loaders.h"

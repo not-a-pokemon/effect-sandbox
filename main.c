@@ -42,6 +42,37 @@ int gcd(int x, int y) {
 	return y;
 }
 
+int entity_rend_chr(entity_s *ent, char *chr, int *r, int *g, int *b, int *a) {
+	effect_s *ef = effect_by_type(ent->effects, EF_RENDER);
+	if (ef != NULL) {
+		effect_render_data *d = (void*)ef->data;
+		*chr = d->chr;
+		*r = d->r;
+		*g = d->g;
+		*b = d->b;
+		*a = d->a;
+		return 1;
+	}
+	ef = effect_by_type(ent->effects, EF_PH_LIQUID);
+	if (ef != NULL) {
+		effect_ph_liquid_data *d = (void*)ef->data;
+		*chr = '~';
+		if (d->type == LIQ_WATER) {
+			*r = 60;
+			*b = 200;
+			*g = 150;
+			*a = 128;
+		} else {
+			*r = 128;
+			*b = 0;
+			*g = 200;
+			*a = 128;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 	int prev_cx = INT_MIN;
 	int prev_cy = INT_MIN;
@@ -82,19 +113,17 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 				int target = cam->blink % (cnt != 0 ? cnt : 1);
 				while (t != NULL) {
 					entity_s *te = t->ent;
-					effect_s *ef = effect_by_type(te->effects, EF_RENDER);
-					if (ef != NULL) {
-						effect_render_data *rend_data = (void*)ef->data;
+					char c_chr;
+					int c_r, c_g, c_b, c_a;
+					if (entity_rend_chr(te, &c_chr, &c_r, &c_g, &c_b, &c_a)) {
 						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
-						char rr[2] = {rend_data->chr, '\0'};
-						SDL_Color colo = {.r = rend_data->r, .g = rend_data->g, .b = rend_data->b, .a = rend_data->a};
+						char rr[2] = {c_chr, '\0'};
+						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
 						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
 						SDL_RenderCopy(rend, tex, NULL, &r);
 						SDL_DestroyTexture(tex);
 						SDL_FreeSurface(surf);
-						/* SDL_SetRenderDrawColor(rend, rend_data->r, rend_data->g, rend_data->b, rend_data->a); */
-						/* SDL_RenderFillRect(rend, &r); */
 					}
 					effect_s *fi = effect_by_type(te->effects, EF_FIRE);
 					if (fi != NULL) {
@@ -794,10 +823,10 @@ void setup_field(void) {
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
-			d->x = 3;
-			d->y = 0;
-			d->z = 0;
-			d->weight = 8;
+			d->x = 2;
+			d->y = 2;
+			d->z = 1;
+			d->weight = 0;
 			d->parent = NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
@@ -807,17 +836,6 @@ void setup_field(void) {
 			d->amount = 200;
 			d->type = LIQ_WATER;
 			effect_prepend(new_ent, ef_ph);
-		}
-		{
-			effect_s *new_eff = alloc_effect(EF_RENDER);
-			new_eff->type = EF_RENDER;
-			effect_render_data *d = (void*)new_eff->data;
-			d->r = 60;
-			d->b = 200;
-			d->g = 150;
-			d->a = 128;
-			d->chr = '~';
-			effect_prepend(new_ent, new_eff);
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
@@ -1486,8 +1504,14 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 			if (e_rend != NULL) {
 				effect_render_data *d = (void*)e_rend->data;
 				rend_char = d->chr;
+			} else {
+				rend_char = '\0';
 			}
-			snprintf(buf, 32, "%p %c", cur_ent, rend_char);
+			if (rend_char != '\0') {
+				snprintf(buf, 32, "%p %c", cur_ent, rend_char);
+			} else {
+				snprintf(buf, 32, "%p", cur_ent);
+			}
 			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
 			if (cur != inputws[inputw_n - 1].data_u.u_entity.cur_sel) {
 				colo.g /= 2;
