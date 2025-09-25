@@ -959,6 +959,7 @@ void params_push_effect(effect_s *s) {
 
 typedef struct gu_things_t {
 	int skip_moving;
+	int no_trigger:1;
 } gu_things_t;
 
 gu_things_t gu_things;
@@ -966,6 +967,7 @@ gu_things_t gu_things;
 void cmap_toggle_skip_moving(cmap_params_t *p) {
 	(void)p;
 	gu_things.skip_moving ^= 1;
+	gu_things.no_trigger = 1;
 }
 
 void cmap_wait(cmap_params_t *p) {
@@ -1346,7 +1348,8 @@ int inputw_entity_key(SDL_Keycode sym) {
 		coord_normalize(&y, &cy);
 		coord_normalize(&z, &cz);
 		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
-		e->cur_list = sector_get_block_entities(sec, x, y, z);
+		entity_l_s_free(e->cur_list);
+		e->cur_list = sector_get_block_entities_indirect(sec, x, y, z);
 		e->cur_sel = e->cur_list;
 		return 1;
 	}
@@ -1367,6 +1370,8 @@ int inputw_entity_key(SDL_Keycode sym) {
 	if (sym == SDLK_RETURN) {
 		if (e->cur_sel != NULL) {
 			params_push_entity(e->cur_sel->ent);
+			entity_l_s_free(e->cur_list);
+			e->cur_list = NULL;
 			return 3;
 		}
 		return 0;
@@ -1501,16 +1506,27 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 		while (cur != NULL) {
 			entity_s *cur_ent = cur->ent;
 			effect_s *e_rend = effect_by_type(cur_ent->effects, EF_RENDER);
-			if (e_rend != NULL) {
-				effect_render_data *d = (void*)e_rend->data;
-				rend_char = d->chr;
+			effect_s *e_liq = effect_by_type(cur_ent->effects, EF_PH_LIQUID);
+			if (e_liq != NULL) {
+				effect_ph_liquid_data *liq_d = (void*)e_liq->data;
+				snprintf(
+					buf, 32,
+					"~%s a:%d",
+					liq_d->type == LIQ_WATER ? "water" : "*",
+					liq_d->amount
+				);
 			} else {
-				rend_char = '\0';
-			}
-			if (rend_char != '\0') {
-				snprintf(buf, 32, "%p %c", cur_ent, rend_char);
-			} else {
-				snprintf(buf, 32, "%p", cur_ent);
+				if (e_rend != NULL) {
+					effect_render_data *d = (void*)e_rend->data;
+					rend_char = d->chr;
+				} else {
+					rend_char = '\0';
+				}
+				if (rend_char != '\0') {
+					snprintf(buf, 32, "%p %c", cur_ent, rend_char);
+				} else {
+					snprintf(buf, 32, "%p", cur_ent);
+				}
 			}
 			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
 			if (cur != inputws[inputw_n - 1].data_u.u_entity.cur_sel) {
@@ -1576,7 +1592,7 @@ void inputw_layer_enter() {
 		coord_normalize(&y, &cy);
 		coord_normalize(&z, &cz);
 		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
-		e->cur_list = sector_get_block_entities(sec, x, y, z);
+		e->cur_list = sector_get_block_entities_indirect(sec, x, y, z);
 		e->cur_sel = e->cur_list;
 	} break;
 	case INPUTW_LIMB: {
@@ -1737,7 +1753,10 @@ int main(int argc, char **argv) {
 							command_map_exec(control_ent, i);
 							inputw_layer_enter();
 							if (inputw_n == 0) {
-								trigger_done = 1;
+								if (!gu_things.no_trigger)
+									trigger_done = 1;
+								else
+									gu_things.no_trigger = 0;
 							} else {
 								need_redraw = 1;
 							}
@@ -1769,7 +1788,10 @@ int main(int argc, char **argv) {
 						inputw_layer_enter();
 						if (inputw_n == 0) {
 							command_maps[gu_params.c_id].callback(&gu_params);
-							trigger_done = 1;
+							if (!gu_things.no_trigger)
+								trigger_done = 1;
+							else
+								gu_things.no_trigger = 0;
 						}
 					}
 					if (mask & 4) {

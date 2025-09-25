@@ -128,6 +128,8 @@ effect_s* prev_effect_by_type(effect_s *s, effect_type t);
 void effect_unlink(entity_s *s, effect_s *e);
 void effect_prepend(entity_s *s, effect_s *e);
 
+void liquid_deduplicate(entity_s *s);
+
 effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag);
 
 void apply_block_move(entity_s *s);

@@ -1048,7 +1048,58 @@ void apply_attack(entity_s *s) {
 	free_effect(e);
 }
 
+void liquid_deduplicate(entity_s *s) {
+	/*
+	 * Works for both top-level and child-level liquids
+	 * Deduplicates liquid objects, only checking for the
+	 * type of liquid.
+	 */
+	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
+	if (ph_item == NULL)
+		return;
+	effect_ph_item_data *item_d = (void*)ph_item->data;
+	entity_l_s *layer_l = NULL;
+	if (item_d->parent != NULL) {
+		layer_l = entity_enlist(item_d->parent);
+	}
+	effect_s *li = effect_by_type(s->effects, EF_PH_LIQUID);
+	if (li == NULL)
+		return;
+	effect_ph_liquid_data *li_d = (void*)li->data;
+	int x, y, z, cx = 0, cy = 0, cz = 0;
+	entity_coords(s, &x, &y, &z);
+	coord_normalize(&x, &cx);
+	coord_normalize(&y, &cy);
+	coord_normalize(&z, &cz);
+	sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
+	entity_l_s *e = layer_l == NULL ? sector_get_block_entities(sec, x, y, z) : layer_l;
+	while (e != NULL) {
+		if (e->ent != s) {
+			effect_s *e_li = effect_by_type(e->ent->effects, EF_PH_LIQUID);
+			if (e_li != NULL) {
+				effect_ph_liquid_data *d = (void*)e_li->data;
+				if (d->type == li_d->type) {
+					li_d->amount += d->amount;
+					effect_unlink(e->ent, e_li);
+					free_effect(e_li);
+					effect_s *new_eff = alloc_effect(EF_B_NONEXISTENT);
+					effect_prepend(e->ent, new_eff);
+				}
+			}
+		}
+		e = e->next;
+	}
+	if (layer_l != NULL)
+		entity_l_s_free(layer_l);
+}
+
 void apply_liquid_movement(entity_s *s) {
+	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
+	if (ph_item == NULL)
+		return;
+	effect_ph_item_data *item_d = (void*)ph_item->data;
+	if (item_d->parent != NULL)
+		return;
 	effect_s *li = effect_by_type(s->effects, EF_PH_LIQUID);
 	if (li == NULL)
 		return;
@@ -1105,6 +1156,7 @@ void apply_liquid_movement(entity_s *s) {
 					effect_ph_liquid_data *dup_liq_d = (void*)dup_liq->data;
 					dup_liq_d->amount = over / ndirs;
 					amount_lost += over / ndirs;
+					liquid_deduplicate(dup);
 				} else {
 					/* something gone really wrong */
 				}
@@ -1122,6 +1174,7 @@ void apply_physics(entity_s *s) {
 		if (ph_item != NULL) {
 			if (ph_liquid != NULL) {
 				apply_liquid_movement(s);
+				liquid_deduplicate(s);
 			} else {
 				apply_gravity(s);
 			}
@@ -1432,7 +1485,6 @@ void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent) {
 }
 
 void dump_effect(effect_s *e, FILE *stream) {
-	/* fprintf(stream, "[EF %d %d]", e->type, e->index); */
 	fwrite(&e->index, sizeof(int), 1, stream);
 	fwrite(&e->type, sizeof(int), 1, stream);
 	effect_dump_t f = effect_dump_functions[e->type];
@@ -1441,11 +1493,9 @@ void dump_effect(effect_s *e, FILE *stream) {
 	} else if (effect_data_size[e->type] != 0) {
 		fprintf(stderr, "[MSG] Un-dumpable effect %d\n", e->type);
 	}
-	/* fprintf(stream, "[!EF]"); */
 }
 
 void dump_entity(entity_s *s, FILE *stream) {
-	/* fprintf(stream, "[EN %d]", entity_get_index(s)); */
 	int ind = entity_get_index(s);
 	fwrite(&ind, sizeof(int), 1, stream);
 	int cnt = entity_num_effects(s) - 1; /* -1 for B_INDEX */
@@ -1470,7 +1520,6 @@ void dump_entity(entity_s *s, FILE *stream) {
 		}
 		e = e->next;
 	}
-	/* fprintf(stream, "[!EN]"); */
 }
 
 void dump_sector(sector_s *s, FILE *stream) {
@@ -1529,19 +1578,16 @@ void dump_sector_list(sector_s *s, FILE *stream) {
 		c = c->snext;
 	}
 	c = s;
-	/* fprintf(stream, "[SECTOR_LIST %d %d]", ent_id, eff_id); */
 	fwrite(&ent_id, sizeof(int), 1, stream);
 	fwrite(&eff_id, sizeof(int), 1, stream);
 	while (c != NULL) {
 		dump_sector(c, stream);
 		c = c->snext;
 	}
-	/* fprintf(stream, "[!SECTOR_LIST]"); */
 }
 
 void effect_dump_ph_block(effect_s *e, FILE *stream) {
 	effect_ph_block_data *d = (void*)e->data;
-	/* fprintf(stream, "[BLOCK %d %d %d %u%u%u%u%u]", d->x, d->y, d->z, d->floor, d->block_movement, d->floor_up, d->stair, d->slope); */
 	fwrite(&d->x, sizeof(int), 1, stream);
 	fwrite(&d->y, sizeof(int), 1, stream);
 	fwrite(&d->z, sizeof(int), 1, stream);
@@ -1663,7 +1709,6 @@ void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, e
 	(void)n_eff;
 	(void)a_eff;
 	effect_ph_block_data *d = (void*)e->data;
-	/* fscanf(stream, "[BLOCK %d %d %d %c%c%c%c%c]", &d->x, &d->y, &d->z, &a, &b, &c, &de, &ee); */
 	fread(&d->x, sizeof(int), 1, stream);
 	fread(&d->y, sizeof(int), 1, stream);
 	fread(&d->z, sizeof(int), 1, stream);
