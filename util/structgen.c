@@ -238,8 +238,8 @@ void put_struct(FILE *to, decl_t *d) {
 void put_loader(FILE *to, decl_t *d) {
 	fprintf(
 		to,
-		"void effect_scan_%s(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {\n"
-		"\t(void)n_ent; (void)a_ent; (void)n_eff; (void)a_eff;\n"
+		"void effect_scan_%s(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {\n"
+		"\t(void)n_ent; (void)a_ent;\n"
 		"\teffect_%s_data *d = (void*)e->data;\n",
 		d->name,
 		d->name

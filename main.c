@@ -214,6 +214,9 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 		effect_stair_move_data *d = (void*)ef->data;
 		slc += snprintf(slc, 128 - (slc - sl), "[stair %d]", d->dir);
 	}
+	{
+		slc += snprintf(slc, 128 - (slc - sl), "[Z%d S%d M%d E%d]", eff_zero_nr, eff_small_nr, eff_medium_nr, ent_free_nr);
+	}
 	if (sl[0] != '\0') {
 		SDL_Color colo = {.r = 0, .g = 255, .b = 128};
 		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, sl, colo);
@@ -230,7 +233,7 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 }
 
 void spawn_simple_floor(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
@@ -267,7 +270,7 @@ void spawn_simple_floor(int x, int y, int z) {
 }
 
 void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
@@ -303,7 +306,7 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 }
 
 void spawn_simple_wall(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
@@ -340,7 +343,7 @@ void spawn_simple_wall(int x, int y, int z) {
 }
 
 void spawn_simple_door(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
@@ -382,7 +385,7 @@ void spawn_simple_door(int x, int y, int z) {
 
 
 void spawn_wood_piece(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
@@ -417,7 +420,7 @@ void spawn_wood_piece(int x, int y, int z) {
 }
 
 void spawn_simple_stair(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
@@ -447,7 +450,7 @@ void spawn_simple_stair(int x, int y, int z) {
 }
 
 void spawn_circle_mover(int x, int y, int z) {
-	entity_s *new_ent = o_malloc(sizeof(entity_s));
+	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
@@ -496,7 +499,7 @@ void setup_field(void) {
 			}
 		}
 
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
@@ -531,7 +534,7 @@ void setup_field(void) {
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
 			d->tag = 0;
 			{
-				entity_s *e_hand = o_malloc(sizeof(entity_s));
+				entity_s *e_hand = o_alloc_entity();
 				e_hand->effects = NULL;
 				entity_prepend(g_entities, e_hand);
 				g_entities = e_hand;
@@ -552,11 +555,10 @@ void setup_field(void) {
 		}
 		{
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
-			ef_limb_slot->type = EF_LIMB_SLOT;
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
 			d->tag = 1;
 			{
-				entity_s *e_hand = o_malloc(sizeof(entity_s));
+				entity_s *e_hand = o_alloc_entity();
 				e_hand->effects = NULL;
 				entity_prepend(g_entities, e_hand);
 				g_entities = e_hand;
@@ -581,7 +583,7 @@ void setup_field(void) {
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
 			{
-				entity_s *e_hand = o_malloc(sizeof(entity_s));
+				entity_s *e_hand = o_alloc_entity();
 				e_hand->effects = NULL;
 				entity_prepend(g_entities, e_hand);
 				g_entities = e_hand;
@@ -612,64 +614,41 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
-			ef_ph->prev = NULL;
-			ef_ph->next = new_ent->effects;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 0;
 			d->y = 0;
 			d->z = 0;
 			d->weight = 2;
 			d->parent = NULL;
-			if (new_ent->effects != NULL) {
-				new_ent->effects->prev = ef_ph;
-			}
-			new_ent->effects = ef_ph;
+			effect_prepend(new_ent, ef_ph);
 		}
 		{
-			effect_s *ef_rend = alloc_effect(EF_R_TOUCH_RNG_TP);
-			ef_rend->type = EF_R_TOUCH_RNG_TP;
-			ef_rend->prev = NULL;
-			ef_rend->next = new_ent->effects;
-			if (new_ent->effects != NULL) {
-				new_ent->effects->prev = ef_rend;
-			}
-			new_ent->effects = ef_rend;
+			effect_s *ef_tp = alloc_effect(EF_R_TOUCH_RNG_TP);
+			effect_prepend(new_ent, ef_tp);
 		}
 		{
 			effect_s *ef_rend = alloc_effect(EF_RENDER);
-			ef_rend->type = EF_RENDER;
-			ef_rend->prev = NULL;
-			ef_rend->next = new_ent->effects;
 			effect_render_data *d = (void*)ef_rend->data;
 			d->r = 0;
 			d->g = 255;
 			d->b = 0;
 			d->a = 128;
 			d->chr = '\'';
-			if (new_ent->effects != NULL) {
-				new_ent->effects->prev = ef_rend;
-			}
-			new_ent->effects = ef_rend;
+			effect_prepend(new_ent, ef_rend);
 		}
-		new_ent->prev = NULL;
-		new_ent->next = g_entities;
-		if (g_entities != NULL) {
-			g_entities->prev = new_ent;
-		}
+		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		new_ent->effects = NULL;
 		{
 			effect_s *new_eff = alloc_effect(EF_ROTATION);
-			new_eff->type = EF_ROTATION;
 			effect_rotation_data *d = (void*)new_eff->data;
 			d->type = RT_DICE;
 			d->rotation = 1;
@@ -677,7 +656,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 1;
 			d->y = 0;
@@ -688,7 +666,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_RENDER);
-			new_eff->type = EF_RENDER;
 			effect_render_data *d = (void*)new_eff->data;
 			d->r = 0;
 			d->b = 100;
@@ -702,10 +679,9 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 1;
 			d->y = 0;
@@ -716,7 +692,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_RENDER);
-			new_eff->type = EF_RENDER;
 			effect_render_data *d = (void*)new_eff->data;
 			d->r = 0;
 			d->b = 100;
@@ -727,7 +702,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_TRACER);
-			new_eff->type = EF_TRACER;
 			effect_tracer_data *d = (void*)new_eff->data;
 			d->x = G_TRACER_RESOLUTION / 2;
 			d->y = G_TRACER_RESOLUTION;
@@ -743,10 +717,9 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 1;
 			d->y = 0;
@@ -757,7 +730,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_RENDER);
-			new_eff->type = EF_RENDER;
 			effect_render_data *d = (void*)new_eff->data;
 			d->r = 0;
 			d->b = 100;
@@ -768,12 +740,10 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_R_TOUCH_SHOOT_PROJECTILE);
-			new_eff->type = EF_R_TOUCH_SHOOT_PROJECTILE;
 			effect_prepend(new_ent, new_eff);
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_AIM);
-			new_eff->type = EF_AIM;
 			effect_aim_data *d = (void*)new_eff->data;
 			d->x = G_TRACER_RESOLUTION / 2;
 			d->y = G_TRACER_RESOLUTION;
@@ -786,10 +756,9 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-			ef_ph->type = EF_PH_ITEM;
 			effect_ph_item_data *d = (void*)ef_ph->data;
 			d->x = 3;
 			d->y = 0;
@@ -800,7 +769,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_RENDER);
-			new_eff->type = EF_RENDER;
 			effect_render_data *d = (void*)new_eff->data;
 			d->r = 60;
 			d->b = 200;
@@ -811,7 +779,6 @@ void setup_field(void) {
 		}
 		{
 			effect_s *new_eff = alloc_effect(EF_TABLE);
-			new_eff->type = EF_TABLE;
 			effect_prepend(new_ent, new_eff);
 		}
 		entity_prepend(g_entities, new_ent);
@@ -819,7 +786,7 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -842,7 +809,7 @@ void setup_field(void) {
 		attach_generic_entity(new_ent);
 	}
 	{
-		entity_s *new_ent = o_malloc(sizeof(entity_s));
+		entity_s *new_ent = o_alloc_entity();
 		{
 			effect_s *ph_item = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ph_item->data;
@@ -958,7 +925,7 @@ void params_push_effect(effect_s *s) {
 }
 
 typedef struct gu_things_t {
-	int skip_moving;
+	int skip_moving:1;
 	int no_trigger:1;
 } gu_things_t;
 
@@ -1090,15 +1057,21 @@ void cmap_throw(cmap_params_t *p) {
 }
 
 void cmap_attack(cmap_params_t *p) {
-	if (p->nargs != 1) {
+	if (p->nargs != 2) {
 		fprintf(stderr, "Wrong number of arguments to cmap_attack\n");
 		return;
 	}
-	if (p->args[0].type != CMAP_ARG_ENTITY) {
+	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_EFFECT) {
 		fprintf(stderr, "Wrong arguments to cmap_attack\n");
 		return;
 	}
-	trigger_attack(p->control_ent, p->args[0].data);
+	effect_limb_slot_data *td = (void*)((effect_s*)p->args[1].data)->data;
+	trigger_attack(
+		p->control_ent,
+		p->args[0].data,
+		ATK_HAND_PUNCH,
+		td->item
+	);
 }
 
 const cmap_t command_maps[] = {
@@ -1119,7 +1092,7 @@ const cmap_t command_maps[] = {
 	(cmap_t){'g', "He(Grab what?)", cmap_grab},
 	(cmap_t){'o', "He(Open door?)", cmap_open_door},
 	(cmap_t){'t', "He(Into what?)", cmap_throw},
-	(cmap_t){'a', "e(Attack what?)", cmap_attack},
+	(cmap_t){'a', "e(Attack what?)H", cmap_attack},
 };
 const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
 
@@ -1162,6 +1135,10 @@ typedef struct inputw_t {
 		inputw_limb_s u_limb;
 	} data_u;
 } inputw_t;
+
+#define INP_M_REDRAW 1
+#define INP_M_NEXT   2
+#define INP_M_RELOAD 4
 
 #define INPUTW_MAXNR 16
 inputw_t inputws[INPUTW_MAXNR];
@@ -1320,11 +1297,11 @@ int inputw_tile_key(SDL_Keycode sym) {
 	if (key_to_direction(sym, &x, &y)) {
 		t->x += x;
 		t->y += y;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_ESCAPE) {
 		inputw_clear();
-		return 1;
+		return INP_M_REDRAW;
 	}
 	return 0;
 }
@@ -1351,28 +1328,28 @@ int inputw_entity_key(SDL_Keycode sym) {
 		entity_l_s_free(e->cur_list);
 		e->cur_list = sector_get_block_entities_indirect(sec, x, y, z);
 		e->cur_sel = e->cur_list;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_ESCAPE) {
 		inputw_clear();
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_DOWN) {
 		if (e->cur_sel != NULL && e->cur_sel->next != NULL)
 			e->cur_sel = e->cur_sel->next;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_UP) {
 		if (e->cur_sel != NULL && e->cur_sel->prev != NULL)
 			e->cur_sel = e->cur_sel->prev;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_RETURN) {
 		if (e->cur_sel != NULL) {
 			params_push_entity(e->cur_sel->ent);
 			entity_l_s_free(e->cur_list);
 			e->cur_list = NULL;
-			return 3;
+			return INP_M_NEXT;
 		}
 		return 0;
 	}
@@ -1391,23 +1368,23 @@ int inputw_limb_key(SDL_Keycode sym) {
 	inputw_limb_s *e = &inputws[inputw_n - 1].data_u.u_limb;
 	if (sym == SDLK_ESCAPE) {
 		inputw_clear();
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_DOWN) {
 		effect_s *t = next_effect_by_type(e->cur_sel, EF_LIMB_SLOT);
 		if (t != NULL)
 			e->cur_sel = t;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_UP) {
 		effect_s *t = prev_effect_by_type(e->cur_sel, EF_LIMB_SLOT);
 		if (t != NULL)
 			e->cur_sel = t;
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_RETURN) {
 		params_push_effect(e->cur_sel);
-		return 3;
+		return INP_M_NEXT;
 	}
 	return 0;
 }
@@ -1423,28 +1400,28 @@ int inputw_limb_default_key(SDL_Keycode sym) {
 	}
 	if (sym == SDLK_ESCAPE) {
 		inputw_clear();
-		return 1;
+		return INP_M_REDRAW;
 	}
 	if (sym == 'm') {
 		memset(&inputws[inputw_n - 1].data_u, 0, sizeof(inputws->data_u));
 		inputws[inputw_n - 1].type = INPUTW_LIMB;
 		inputws[inputw_n - 1].data_u.u_limb.ent = gu_params.control_ent;
-		return 4;
+		return INP_M_RELOAD;
 	}
 	if (sym == SDLK_RETURN) {
 		effect_s *slot = effect_by_type(gu_params.control_ent->effects, EF_LIMB_SLOT);
 		params_push_effect(slot);
-		return 3;
+		return INP_M_NEXT;
 	}
 	return 0;
 }
 
 void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
 	(void)control_ent;
+	cam->cursor_x = -1;
+	cam->cursor_y = -1;
 	switch (inputw_n == 0 ? INPUTW_ORIGIN : inputws[inputw_n - 1].type) {
 	case INPUTW_ORIGIN: {
-		cam->cursor_x = -1;
-		cam->cursor_y = -1;
 	} break;
 	case INPUTW_TILE: {
 	} break;
@@ -1606,6 +1583,8 @@ void inputw_layer_enter() {
 }
 
 int main(int argc, char **argv) {
+	o_init_allocator();
+
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
 	SDL_Window *win = SDL_CreateWindow("effect-sandbox", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 700, 700, SDL_WINDOW_RESIZABLE);
@@ -1732,19 +1711,17 @@ int main(int argc, char **argv) {
 		int trigger_done = 0;
 		while (SDL_PollEvent(&evt)) {
 			if (evt.type == SDL_WINDOWEVENT) {
-				if (evt.window.event == SDL_WINDOWEVENT_RESIZED) {
+				switch (evt.window.event) {
+				case SDL_WINDOWEVENT_EXPOSED:
+				case SDL_WINDOWEVENT_RESIZED: {
 					need_redraw = 1;
+				} break;
 				}
 			} else if (evt.type == SDL_KEYDOWN) {
 				SDL_Keycode sym = evt.key.keysym.sym;
 				if (evt.key.keysym.mod & KMOD_SHIFT) {
 					if (sym == ',') sym = '<';
 					else if (sym == '.') sym = '>';
-				}
-				if (sym >= 33 && sym <= 126) {
-					printf("'%c' is a printable symbol\n", sym);
-				} else {
-					printf("'%d' is NOT a printable symbol\n", sym);
 				}
 				if (inputw_n == 0 && !skip_tick) {
 					/* TODO check if it's reaction time for player */
@@ -1781,9 +1758,10 @@ int main(int argc, char **argv) {
 					default: {
 					}
 					}
-					if (mask & 1)
+					if (mask & INP_M_REDRAW)
 						need_redraw = 1;
-					if (mask & 2) {
+					if (mask & INP_M_NEXT) {
+						need_redraw = 1;
 						inputw_n--;
 						inputw_layer_enter();
 						if (inputw_n == 0) {
@@ -1794,7 +1772,7 @@ int main(int argc, char **argv) {
 								gu_things.no_trigger = 0;
 						}
 					}
-					if (mask & 4) {
+					if (mask & INP_M_RELOAD) {
 						inputw_layer_enter();
 						need_redraw = 1;
 					}

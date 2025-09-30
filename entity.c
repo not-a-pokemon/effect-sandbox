@@ -15,9 +15,9 @@ effect_s* alloc_effect(effect_type t) {
 #endif
 	effect_s *r;
 	if (t == EF_UNKNOWN) {
-		r = o_malloc(sizeof(effect_s) + 32);
+		r = o_alloc_effect_i(32);
 	} else {
-		r = o_malloc(sizeof(effect_s) + effect_data_size[t]);
+		r = o_alloc_effect_i(effect_data_size[t]);
 	}
 	r->type = t;
 	return r;
@@ -27,7 +27,7 @@ void free_effect(effect_s *s) {
 #ifdef DEBUG_EFFECT_ALLOCS
 	fprintf(stderr, "[MSG] freeing effect %d\n", s->type);
 #endif
-	o_free(s);
+	o_free_effect_i(s, effect_data_size[s->type]);
 }
 
 void coord_normalize(int *x, int *cx) {
@@ -265,7 +265,6 @@ void apply_instants(entity_s *s) {
 				free_effect(ef);
 			} else {
 				effect_s *new_ef = alloc_effect(EF_S_DMG);
-				new_ef->type = EF_S_DMG;
 				effect_s_dmg_data *d = (void*)new_ef->data;
 				d->type = DMGT_FIRE;
 				d->val = 1;
@@ -316,7 +315,6 @@ void apply_instants(entity_s *s) {
 			if (entity_reachable(s, entity_limb_by_tag(s, d->eff_tag), d->ent)) {
 				entity_s *target = d->ent;
 				effect_s *new_ef = alloc_effect(EF_S_TOUCH);
-				new_ef->type = EF_S_TOUCH;
 				effect_prepend(target, new_ef);
 			}
 			effect_unlink(s, ef);
@@ -370,7 +368,7 @@ void apply_reactions(entity_s *s) {
 		if (ef != NULL && ef1 != NULL && ef2 != NULL) {
 			effect_aim_data *aim_d = (void*)ef1->data;
 			/* effect_ph_item_data *ph_d = (void*)ef2->data; */
-			entity_s *new_ent = o_malloc(sizeof(entity_s));
+			entity_s *new_ent = o_alloc_entity();
 			new_ent->effects = NULL;
 			{
 				effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
@@ -453,7 +451,6 @@ void apply_reactions(entity_s *s) {
 		{
 			if (eft_d->ent != NULL) {
 				effect_s *new_ef = alloc_effect(EF_S_DMG);
-				new_ef->type = EF_S_DMG;
 				effect_s_dmg_data *new_ef_d = (void*)new_ef->data;
 				new_ef_d->type = DMGT_BLUNT;
 				new_ef_d->val = eft_d->force;
@@ -495,7 +492,6 @@ void apply_reactions(entity_s *s) {
 NO_DMG:
 				if (mat_d->dur <= 0) {
 					effect_s *new_ef = alloc_effect(EF_B_NONEXISTENT);
-					new_ef->type = EF_B_NONEXISTENT;
 					effect_prepend(s, new_ef);
 				}
 			}
@@ -567,7 +563,7 @@ entity_s* clear_nonexistent(entity_s *sl) {
 				s->next->prev = s->prev;
 			unparent_entity(s);
 			detach_generic_entity(s);
-			o_free(s);
+			o_free_entity(s);
 		}
 		s = t;
 	}
@@ -592,7 +588,6 @@ void apply_gravity(entity_s *s) {
 			entity_set_coords(s, x, y, z - 1);
 			if (effect_by_type(s->effects, EF_FALLING) == NULL) {
 				effect_s *new_ef = alloc_effect(EF_FALLING);
-				new_ef->type = EF_FALLING;
 				effect_prepend(s, new_ef);
 			}
 			attach_generic_entity(s);
@@ -605,7 +600,6 @@ void apply_gravity(entity_s *s) {
 			effect_s *ef = effect_by_type(s->effects, EF_FALLING);
 			if (ef != NULL) {
 				effect_s *new_ef = alloc_effect(EF_S_BUMP);
-				new_ef->type = EF_S_BUMP;
 				effect_s_bump_data *d = (void*)new_ef->data;
 				/* TODO bump into what */
 				d->ent = NULL;
@@ -665,7 +659,7 @@ int entity_set_coords(entity_s *s, int x, int y, int z) {
 }
 
 entity_s* entity_copy(entity_s *s) {
-	entity_s *t = o_malloc(sizeof(entity_s));
+	entity_s *t = o_alloc_entity();
 	t->effects = NULL;
 	effect_s *e = s->effects;
 	while (e != NULL) {
@@ -700,7 +694,7 @@ void detach_entity(entity_s *s, int x, int y, int z) {
 				if (e->prev == NULL) {
 					sec->block_entities[x][y][z] = e->next;
 				}
-				o_free_m(e, "detach");
+				o_free(e);
 				break;
 			}
 			e = e->next;
@@ -718,7 +712,7 @@ void attach_entity(entity_s *s, int x, int y, int z) {
 	sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
 	if (sec != NULL) {
 		entity_l_s *e = sector_get_block_entities(sec, x, y, z);
-		entity_l_s *prepend = o_malloc_m(sizeof(entity_l_s), "attach");
+		entity_l_s *prepend = o_malloc(sizeof(entity_l_s));
 		prepend->next = e;
 		if (e != NULL) {
 			e->prev = prepend;
@@ -972,7 +966,6 @@ void apply_tracer(entity_s *s) {
 		sector_s *sect = sector_get_sector(g_sectors, nxc, nyc, nzc);
 		if (sect == NULL || sector_get_block_blocked_movement(sect, nxe, nye, nze)) {
 			effect_s *ef_bump = alloc_effect(EF_S_BUMP);
-			ef_bump->type = EF_S_BUMP;
 			effect_s_bump_data *d = (void*)ef_bump->data;
 			d->ent = NULL;
 			d->force = tracer_d->speed;
@@ -990,7 +983,6 @@ void apply_tracer(entity_s *s) {
 				/* ph_d->z = old_z; */
 				attach_generic_entity(s);
 				effect_s *ef_bump = alloc_effect(EF_S_BUMP);
-				ef_bump->type = EF_S_BUMP;
 				effect_s_bump_data *d = (void*)ef_bump->data;
 				d->ent = NULL;
 				d->force = tracer_d->speed;
@@ -1006,7 +998,6 @@ void apply_tracer(entity_s *s) {
 		entity_s *w = tracer_check_bump(s, nx, ny, nz);
 		if (w != NULL) {
 			effect_s *ef_bump = alloc_effect(EF_S_BUMP);
-			ef_bump->type = EF_S_BUMP;
 			effect_s_bump_data *d = (void*)ef_bump->data;
 			d->ent = w;
 			d->force = tracer_d->speed;
@@ -1038,9 +1029,9 @@ void apply_attack(entity_s *s) {
 	}
 	if (data->ent != NULL) {
 		effect_s *new_eff = alloc_effect(EF_S_DMG);
-		new_eff->type = EF_S_DMG;
 		effect_s_dmg_data *new_data = (void*)new_eff->data;
 		new_data->type = DMGT_BLUNT;
+		//entity_damage_calc(data->type, &new_data->type, &new_data->val);
 		new_data->val = 1;
 		effect_prepend(data->ent, new_eff);
 	}
@@ -1187,7 +1178,6 @@ void trigger_move(entity_s *s, int x, int y, int z) {
 	effect_s *ef = effect_by_type(s->effects, EF_BLOCK_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_BLOCK_MOVE);
-		ef->type = EF_BLOCK_MOVE;
 		effect_prepend(s, ef);
 	}
 	effect_block_move_data *ed = (void*)ef->data;
@@ -1201,7 +1191,6 @@ void trigger_go_up(entity_s *s, int start_delay) {
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
-		ef->type = EF_STAIR_MOVE;
 		ef->prev = NULL;
 		ef->next = s->effects;
 		s->effects = ef;
@@ -1215,7 +1204,6 @@ void trigger_go_down(entity_s *s, int start_delay) {
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
-		ef->type = EF_STAIR_MOVE;
 		ef->prev = NULL;
 		ef->next = s->effects;
 		s->effects = ef;
@@ -1230,7 +1218,6 @@ void trigger_grab(entity_s *s, effect_s *h, entity_s *w) {
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_GRAB);
-	new_eff->type = EF_M_GRAB;
 	effect_m_grab_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	d->ent = w;
@@ -1242,7 +1229,6 @@ void trigger_drop(entity_s *s, effect_s *h) {
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_DROP);
-	new_eff->type = EF_M_DROP;
 	effect_m_drop_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	effect_prepend(s, new_eff);
@@ -1253,7 +1239,6 @@ void trigger_put(entity_s *s, effect_s *h, entity_s *w) {
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_PUT);
-	new_eff->type = EF_M_PUT;
 	effect_m_put_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	d->where = w;
@@ -1265,7 +1250,6 @@ void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_THROW);
-	new_eff->type = EF_M_THROW;
 	effect_prepend(s, new_eff);
 	effect_m_throw_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
@@ -1280,31 +1264,23 @@ void trigger_touch(entity_s *s, effect_s *h, entity_s *w) {
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_TOUCH);
-	new_eff->type = EF_M_TOUCH;
 	effect_m_touch_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	d->ent = w;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_attack(entity_s *s, entity_s *e) {
-	if (effect_by_type(s->effects, EF_ATTACK) != NULL) {
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool) {
+	if (effect_by_type(s->effects, EF_ATTACK) != NULL)
 		return;
-	}
+	if (tool == NULL)
+		return;
 	effect_s *new_eff = alloc_effect(EF_ATTACK);
-	new_eff->type = EF_ATTACK;
 	effect_attack_data *d = (void*)new_eff->data;
 	d->ent = e;
 	d->delay = 1;
-	d->type = DMGT_BLUNT;
-	d->tool = NULL;
-	{
-		effect_s *limb_slot = effect_by_type(s->effects, EF_LIMB_SLOT);
-		if (limb_slot != NULL) {
-			effect_limb_slot_data *limb_slot_d = (void*)limb_slot->data;
-			d->tool = limb_slot_d->item;
-		}
-	}
+	d->type = type;
+	d->tool = tool;
 	effect_prepend(s, new_eff);
 }
 
@@ -1313,7 +1289,6 @@ void trigger_aim(entity_s *s, effect_s *e, int x, int y, int z, entity_s *ent) {
 		return;
 	effect_limb_slot_data *ds = (void*)e->data;
 	effect_s *new_eff = alloc_effect(EF_M_AIM_FOR);
-	new_eff->type = EF_M_AIM_FOR;
 	effect_m_aim_for_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	d->x = x;
@@ -1363,7 +1338,6 @@ void hand_drop(entity_s *ent, effect_s *hand) {
 					}
 					if (effect_by_type(hand_data->item->effects, EF_FALLING) == NULL) {
 						effect_s *ef_fall = alloc_effect(EF_FALLING);
-						ef_fall->type = EF_FALLING;
 						effect_prepend(hand_data->item, ef_fall);
 					}
 					hand_data->item = NULL;
@@ -1424,11 +1398,9 @@ void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 	}
 	if (effect_by_type(hand_d->item->effects, EF_FALLING) == NULL) {
 		effect_s *ef_fall = alloc_effect(EF_FALLING);
-		ef_fall->type = EF_FALLING;
 		effect_prepend(hand_d->item, ef_fall);
 	}
 	effect_s *ef_tracer = alloc_effect(EF_TRACER);
-	ef_tracer->type = EF_TRACER;
 	effect_tracer_data *tracer_d = (void*)ef_tracer->data;
 	tracer_d->cur_x = 0;
 	tracer_d->cur_y = 0;
@@ -1474,7 +1446,6 @@ void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent) {
 	effect_s *new_eff = effect_by_type(hand_d->item->effects, EF_AIM);
 	if (new_eff == NULL) {
 		new_eff = alloc_effect(EF_AIM);
-		new_eff->type = EF_AIM;
 		effect_prepend(hand_d->item, new_eff);
 	}
 	effect_aim_data *new_d = (void*)new_eff->data;
@@ -1485,7 +1456,6 @@ void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent) {
 }
 
 void dump_effect(effect_s *e, FILE *stream) {
-	fwrite(&e->index, sizeof(int), 1, stream);
 	fwrite(&e->type, sizeof(int), 1, stream);
 	effect_dump_t f = effect_dump_functions[e->type];
 	if (f != NULL) {
@@ -1536,20 +1506,16 @@ void dump_sector(sector_s *s, FILE *stream) {
 	}
 }
 
-void entity_enumerate(entity_s *s, int *ent_id, int *eff_id) {
+void entity_enumerate(entity_s *s, int *ent_id) {
 	entity_set_index(s, *ent_id);
-	(*ent_id) ++;
+	(*ent_id)++;
 	effect_s *ef = s->effects;
 	while (ef != NULL) {
-		if (ef->type != EF_B_INDEX) {
-			ef->index = *eff_id;
-			(*eff_id) ++;
-		}
 		{
 			entity_l_s *ls = effect_enlist(ef);
 			entity_l_s *lsc = ls;
 			while (lsc != NULL) {
-				entity_enumerate(lsc->ent, ent_id, eff_id);
+				entity_enumerate(lsc->ent, ent_id);
 				ls = lsc;
 				lsc = lsc->next;
 				o_free(ls);
@@ -1562,14 +1528,13 @@ void entity_enumerate(entity_s *s, int *ent_id, int *eff_id) {
 void dump_sector_list(sector_s *s, FILE *stream) {
 	sector_s *c = s;
 	int ent_id = 0;
-	int eff_id = 0;
 	while (c != NULL) {
 		for (int i = 0; i < G_SECTOR_SIZE; i ++) {
 			for (int j = 0; j < G_SECTOR_SIZE; j ++) {
 				for (int k = 0; k < G_SECTOR_SIZE; k ++) {
 					entity_l_s *e = c->block_entities[i][j][k];
 					while (e != NULL) {
-						entity_enumerate(e->ent, &ent_id, &eff_id);
+						entity_enumerate(e->ent, &ent_id);
 						e = e->next;
 					}
 				}
@@ -1579,7 +1544,6 @@ void dump_sector_list(sector_s *s, FILE *stream) {
 	}
 	c = s;
 	fwrite(&ent_id, sizeof(int), 1, stream);
-	fwrite(&eff_id, sizeof(int), 1, stream);
 	while (c != NULL) {
 		dump_sector(c, stream);
 		c = c->snext;
@@ -1598,7 +1562,6 @@ void effect_dump_ph_block(effect_s *e, FILE *stream) {
 void unload_entity(entity_s *s) {
 	if (effect_by_type(s->effects, EF_B_NONEXISTENT) == NULL) {
 		effect_s *new_eff = alloc_effect(EF_B_NONEXISTENT);
-		new_eff->type = EF_B_NONEXISTENT;
 		effect_prepend(s, new_eff);
 	}
 	effect_s *c = s->effects;
@@ -1616,13 +1579,12 @@ void unload_entity(entity_s *s) {
 }
 
 entity_s *load_sector_list(FILE *stream) {
-	int n_ent, n_eff;
+	int n_ent;
 	fread(&n_ent, sizeof(int), 1, stream);
-	fread(&n_eff, sizeof(int), 1, stream);
 	entity_s **a_ent = o_malloc(sizeof(entity_s*) * n_ent);
 	entity_s *prev_ent = NULL;
 	for (int i = 0; i < n_ent; i ++) {
-		a_ent[i] = o_malloc(sizeof(entity_s));
+		a_ent[i] = o_alloc_entity();
 		a_ent[i]->effects = NULL;
 		a_ent[i]->prev = prev_ent;
 		prev_ent = a_ent[i];
@@ -1630,39 +1592,26 @@ entity_s *load_sector_list(FILE *stream) {
 	for (int i = 0; i + 1 < n_ent; i ++) {
 		a_ent[i]->next = a_ent[i + 1];
 	}
-	effect_s **a_eff = o_malloc(sizeof(effect_s*) * n_eff);
-	for (int i = 0; i < n_eff; i ++) {
-		a_eff[i] = alloc_effect(EF_UNKNOWN);
-	}
 	for (int i = 0; i < n_ent; i ++) {
-		scan_entity(n_ent, a_ent, n_eff, a_eff, stream);
+		scan_entity(n_ent, a_ent, stream);
 	}
 	entity_s *t = a_ent[0];
 	o_free(a_ent);
-	o_free(a_eff);
 	return t;
 }
 
-effect_s *scan_effect(int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
-	int id, type;
-	fread(&id, sizeof(int), 1, stream);
-	if (id >= n_eff) {
-		/* Fail badly */
-		fprintf(stderr, "Failed badly\n");
-		fflush(stderr);
-		return NULL;
-	} else {
-		fread(&type, sizeof(int), 1, stream);
-		effect_scan_t scanner = effect_scan_functions[type];
-		a_eff[id]->type = type;
-		if (scanner != NULL) {
-			scanner(a_eff[id], n_ent, a_ent, n_eff, a_eff, stream);
-		}
-		return a_eff[id];
+effect_s* scan_effect(int n_ent, entity_s **a_ent, FILE *stream) {
+	int type;
+	fread(&type, sizeof(int), 1, stream);
+	effect_s *eff = alloc_effect(type);
+	effect_scan_t scanner = effect_scan_functions[type];
+	if (scanner != NULL) {
+		scanner(eff, n_ent, a_ent, stream);
 	}
+	return eff;
 }
 
-entity_s *scan_entity(int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
 	int id;
 	fread(&id, sizeof(int), 1, stream);
 	if (id >= n_ent) {
@@ -1675,7 +1624,7 @@ entity_s *scan_entity(int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, 
 		fread(&id_eff, sizeof(int), 1, stream);
 		effect_s *la = a_ent[id]->effects;
 		for (int i = 0; i < id_eff; i ++) {
-			effect_s *c = scan_effect(n_ent, a_ent, n_eff, a_eff, stream);
+			effect_s *c = scan_effect(n_ent, a_ent, stream);
 			c->prev = la;
 			c->next = NULL;
 			if (la != NULL) {
@@ -1703,11 +1652,9 @@ void unload_sector(sector_s *s) {
 	}
 }
 
-void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream) {
+void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent;
 	(void)a_ent;
-	(void)n_eff;
-	(void)a_eff;
 	effect_ph_block_data *d = (void*)e->data;
 	fread(&d->x, sizeof(int), 1, stream);
 	fread(&d->y, sizeof(int), 1, stream);
@@ -1737,10 +1684,8 @@ void entity_set_index(entity_s *s, int i) {
 	effect_s *eff = effect_by_type(s->effects, EF_B_INDEX);
 	if (eff == NULL) {
 		eff = alloc_effect(EF_B_INDEX);
-		eff->type = EF_B_INDEX;
 		effect_prepend(s, eff);
 	}
-
 	effect_b_index_data *d = (void*)eff->data;
 	d->index = i;
 }

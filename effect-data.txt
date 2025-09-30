@@ -18,7 +18,7 @@ decl-s limb_hand int grab_type ent-n item :
 decl-s limb_leg 'empty :
 decl-s material 'T material_type type int dur :
 decl-s aim int x int y int z ent-n ent :
-decl-s attack ent-r ent int type int delay ent-r tool :
+decl-s attack ent-r ent 'E attack_type type int delay ent-r tool :
 decl-s table 'empty :
 decl-s table_item ent-r item :
 decl-s fire 'empty :

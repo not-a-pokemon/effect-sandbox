@@ -1,6 +1,7 @@
 #ifndef _efsa_ENTITY_H
 #define _efsa_ENTITY_H
 
+#include <stdio.h>
 #include <stdint.h>
 #include "rng.h"
 
@@ -54,14 +55,20 @@ typedef enum damage_type {
 	DMGT_FIRE,
 } damage_type;
 
+typedef enum attack_type {
+	ATK_SWING,
+	ATK_THRUST,
+	ATK_HAND_PUNCH,
+	ATK_KICK,
+} attack_type;
+
 #include "gen-effects.h"
 
 typedef struct effect_s {
 	struct effect_s *prev;
 	struct effect_s *next;
 	enum effect_type type;
-	/* For save/load */
-	int index;
+	char _pad[4];
 	/* Must be aligned as underlying effect_data */
 	char data[];
 } effect_s;
@@ -90,7 +97,7 @@ typedef struct sector_s {
 typedef sector_s sectors_s;
 
 typedef void (*effect_dump_t)(struct effect_s *e, FILE *stream);
-typedef void (*effect_scan_t)(struct effect_s *e, int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream);
+typedef void (*effect_scan_t)(struct effect_s *e, int n_ent, entity_s **a_ent, FILE *stream);
 
 extern int effect_data_size[];
 extern effect_dump_t effect_dump_functions[];
@@ -175,7 +182,7 @@ void trigger_put(entity_s *s, effect_s *h, entity_s *w);
 void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
 void trigger_touch(entity_s *s, effect_s *h, entity_s *w);
 void trigger_punch(entity_s *s, entity_s *e);
-void trigger_attack(entity_s *s, entity_s *e);
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool);
 void trigger_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 
 void dump_effect(effect_s *e, FILE *stream);
@@ -184,8 +191,8 @@ void dump_sector(sector_s *s, FILE *stream);
 void dump_sector_list(sector_s *s, FILE *stream);
 
 entity_s *load_sector_list(FILE *stream);
-effect_s *scan_effect(int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream);
-entity_s *scan_entity(int n_ent, entity_s **a_ent, int n_eff, effect_s **a_eff, FILE *stream);
+effect_s *scan_effect(int n_ent, entity_s **a_ent, FILE *stream);
+entity_s *scan_entity(int n_ent, entity_s **a_ent, FILE *stream);
 
 void unload_entity(entity_s *s);
 // Remove sector from active list alongside with every entity
@@ -195,7 +202,7 @@ int entity_get_index(entity_s *s);
 void entity_set_index(entity_s *s, int i);
 int entity_num_effects(entity_s *s);
 
-void entity_enumerate(entity_s *s, int *ent_id, int *eff_id);
+void entity_enumerate(entity_s *s, int *ent_id);
 
 entity_l_s* effect_enlist(effect_s *s);
 entity_l_s* entity_enlist(entity_s *s);

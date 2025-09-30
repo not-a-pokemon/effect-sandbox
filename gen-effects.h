@@ -56,7 +56,7 @@ typedef struct effect_aim_data {
 } effect_aim_data;
 typedef struct effect_attack_data {
 	struct entity_s *ent;
-	int type;
+	enum attack_type type;
 	int delay;
 	struct entity_s *tool;
 } effect_attack_data;
