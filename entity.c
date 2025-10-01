@@ -1368,7 +1368,6 @@ void hand_put(entity_s *ent, effect_s *hand, entity_s *w) {
 						item_data->parent = w;
 						item_data->parent_type = PARENT_REF_PLACE;
 						effect_s *new_eff = alloc_effect(EF_TABLE_ITEM);
-						new_eff->type = EF_TABLE_ITEM;
 						effect_table_item_data *d = (void*)new_eff->data;
 						d->item = hand_data->item;
 						effect_prepend(w, new_eff);

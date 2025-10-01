@@ -146,14 +146,14 @@ void o_free_effect(effect_s *e, o_effect_size t) {
 		fprintf(stderr, "Pointer in section small at position %zu\n", (placeholder_small*)e - eff_buf_small);
 	}
 	if ((void*)e >= (void*)eff_buf_medium && (void*)e < (void*)(eff_buf_medium + O_EFF_MEDIUM_NR)) {
-		fprintf(stderr, "Pointer in section medium at position %zu\n", (placeholder_meduim*)e - eff_buf_medium);
+		fprintf(stderr, "Pointer in section medium at position %zu\n", (placeholder_medium*)e - eff_buf_medium);
 	}
 #endif
 	switch (t) {
 	case O_EFS_ZERO: {
 		placeholder_zero *s = (void*)e;
 		if (s < eff_buf_zero || s >= eff_buf_zero + O_EFF_ZERO_NR) {
-			fprintf(stderr, "Attempt to free a garbage pointer (zero) %p\n", s);
+			fprintf(stderr, "Attempt to free a garbage pointer (zero) %p (type %d)\n", s, e->type);
 			return;
 		}
 		eff_queue_zero[eff_zero_nr] = s - eff_buf_zero;
@@ -175,7 +175,7 @@ void o_free_effect(effect_s *e, o_effect_size t) {
 			return;
 		}
 		eff_queue_medium[eff_medium_nr] = s - eff_buf_medium;
-		eff_zero_nr++;
+		eff_medium_nr++;
 	} break;
 	}
 }
