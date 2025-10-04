@@ -47,6 +47,8 @@ typedef struct effect_limb_hand_data {
 typedef struct effect_material_data {
 	material_type type;
 	int dur;
+	uint32_t prop;
+	uint32_t tag;
 } effect_material_data;
 typedef struct effect_aim_data {
 	int x;
@@ -57,6 +59,7 @@ typedef struct effect_aim_data {
 typedef struct effect_attack_data {
 	struct entity_s *ent;
 	enum attack_type type;
+	uint32_t weapon_mat;
 	int delay;
 	struct entity_s *tool;
 } effect_attack_data;
@@ -81,6 +84,7 @@ typedef struct effect_a_pressure_plate_data {
 typedef struct effect_m_grab_data {
 	int eff_tag;
 	struct entity_s *ent;
+	uint32_t mat_tag;
 } effect_m_grab_data;
 typedef struct effect_m_drop_data {
 	int eff_tag;

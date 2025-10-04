@@ -118,11 +118,15 @@ void effect_scan_material(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream
 	effect_material_data *d = (void*)e->data;
 	fread(&d->type, sizeof(material_type), 1, stream);
 	fread(&d->dur, sizeof(int), 1, stream);
+	fread(&d->prop, sizeof(uint32_t), 1, stream);
+	fread(&d->tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_material(effect_s *e, FILE *stream) {
 	effect_material_data *d = (void*)e->data;
 	fwrite(&d->type, sizeof(material_type), 1, stream);
 	fwrite(&d->dur, sizeof(int), 1, stream);
+	fwrite(&d->prop, sizeof(uint32_t), 1, stream);
+	fwrite(&d->tag, sizeof(uint32_t), 1, stream);
 }
 void effect_scan_aim(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -144,6 +148,7 @@ void effect_scan_attack(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) 
 	effect_attack_data *d = (void*)e->data;
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
 	fread(&d->type, sizeof(int), 1, stream);
+	fread(&d->weapon_mat, sizeof(uint32_t), 1, stream);
 	fread(&d->delay, sizeof(int), 1, stream);
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->tool = NULL; else d->tool = a_ent[t]; }
 }
@@ -151,6 +156,7 @@ void effect_dump_attack(effect_s *e, FILE *stream) {
 	effect_attack_data *d = (void*)e->data;
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->type, sizeof(int), 1, stream);
+	fwrite(&d->weapon_mat, sizeof(uint32_t), 1, stream);
 	fwrite(&d->delay, sizeof(int), 1, stream);
 	{ int t; if (d->tool == NULL){t = -1;}else{t = entity_get_index(d->tool);} fwrite(&t, sizeof(int), 1, stream); }
 }
@@ -210,11 +216,13 @@ void effect_scan_m_grab(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) 
 	effect_m_grab_data *d = (void*)e->data;
 	fread(&d->eff_tag, sizeof(int), 1, stream);
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+	fread(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_m_grab(effect_s *e, FILE *stream) {
 	effect_m_grab_data *d = (void*)e->data;
 	fwrite(&d->eff_tag, sizeof(int), 1, stream);
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_scan_m_drop(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;

@@ -276,7 +276,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_GRAB);
 		if (ef != NULL) {
 			effect_m_grab_data *d = (void*)ef->data;
-			hand_grab(s, entity_limb_by_tag(s, d->eff_tag), d->ent);
+			hand_grab(s, entity_limb_by_tag(s, d->eff_tag), d->ent, d->mat_tag);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -772,10 +772,27 @@ void effect_prepend(entity_s *s, effect_s *e) {
 }
 
 effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag) {
+	if (s == NULL)
+		return NULL;
 	effect_s *e = s->effects;
 	while (e != NULL) {
 		if (e->type == EF_LIMB_SLOT) {
 			effect_limb_slot_data *d = (void*)e->data;
+			if (d->tag == tag)
+				return e;
+		}
+		e = e->next;
+	}
+	return NULL;
+}
+
+effect_s* entity_material_by_tag(entity_s *s, uint32_t tag) {
+	if (s == NULL)
+		return NULL;
+	effect_s *e = s->effects;
+	while (e != NULL) {
+		if (e->type == EF_MATERIAL) {
+			effect_material_data *d = (void*)e->data;
 			if (d->tag == tag)
 				return e;
 		}
@@ -1022,17 +1039,29 @@ void apply_attack(entity_s *s) {
 	effect_s *e = effect_by_type(s->effects, EF_ATTACK);
 	if (e == NULL) return;
 	effect_attack_data *data = (void*)e->data;
+	effect_s *mat = entity_material_by_tag(data->tool, data->weapon_mat);
+	if (mat == NULL) {
+		effect_unlink(s, e);
+		free_effect(e);
+		return;
+	}
+	effect_material_data *mat_d = (void*)mat->data;
 	/* TODO cancel attack sometimes */
 	if (data->delay > 0) {
-		data->delay --;
+		data->delay--;
 		return;
 	}
 	if (data->ent != NULL) {
 		effect_s *new_eff = alloc_effect(EF_S_DMG);
 		effect_s_dmg_data *new_data = (void*)new_eff->data;
-		new_data->type = DMGT_BLUNT;
 		//entity_damage_calc(data->type, &new_data->type, &new_data->val);
-		new_data->val = 1;
+		if (mat_d->prop & MATP_SHARP) {
+			new_data->type = DMGT_CUT;
+			new_data->val = 2;
+		} else {
+			new_data->type = DMGT_BLUNT;
+			new_data->val = 1;
+		}
 		effect_prepend(data->ent, new_eff);
 	}
 	effect_unlink(s, e);
@@ -1213,7 +1242,7 @@ void trigger_go_down(entity_s *s, int start_delay) {
 	ed->dir = -1;
 }
 
-void trigger_grab(entity_s *s, effect_s *h, entity_s *w) {
+void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag) {
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
@@ -1221,6 +1250,7 @@ void trigger_grab(entity_s *s, effect_s *h, entity_s *w) {
 	effect_m_grab_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
 	d->ent = w;
+	d->mat_tag = tag;
 	effect_prepend(s, new_eff);
 }
 
@@ -1270,7 +1300,7 @@ void trigger_touch(entity_s *s, effect_s *h, entity_s *w) {
 	effect_prepend(s, new_eff);
 }
 
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool) {
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool, uint32_t weapon_mat) {
 	if (effect_by_type(s->effects, EF_ATTACK) != NULL)
 		return;
 	if (tool == NULL)
@@ -1281,6 +1311,7 @@ void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool) 
 	d->delay = 1;
 	d->type = type;
 	d->tool = tool;
+	d->weapon_mat = weapon_mat;
 	effect_prepend(s, new_eff);
 }
 
@@ -1298,7 +1329,7 @@ void trigger_aim(entity_s *s, effect_s *e, int x, int y, int z, entity_s *ent) {
 	effect_prepend(s, new_eff);
 }
 
-void hand_grab(entity_s *ent, effect_s *hand, entity_s *item) {
+void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag) {
 	if (hand->type == EF_LIMB_SLOT) {
 		effect_limb_slot_data *hand_data = (void*)hand->data;
 		if (item == hand_data->item || item == ent)
@@ -1308,12 +1339,18 @@ void hand_grab(entity_s *ent, effect_s *hand, entity_s *item) {
 		if (ef_hand != NULL && ef_ph != NULL && entity_reachable(ent, hand, item)) {
 			effect_ph_item_data *ph_data = (void*)ef_ph->data;
 			effect_limb_hand_data *lhand_data = (void*)ef_hand->data;
-			if (lhand_data->item == NULL && (ph_data->parent == NULL || ph_data->parent_type == PARENT_REF_PLACE)) {
+			effect_s *mat = entity_material_by_tag(item, tag);
+			if (
+				lhand_data->item == NULL &&
+				(ph_data->parent == NULL || ph_data->parent_type == PARENT_REF_PLACE) &&
+				mat != NULL
+			) {
 				unparent_entity(item);
 				detach_generic_entity(item);
 				ph_data->parent = hand_data->item;
 				ph_data->parent_type = PARENT_REF_HELD;
 				lhand_data->item = item;
+				lhand_data->grab_type = tag;
 			}
 		}
 	}

@@ -262,6 +262,8 @@ void spawn_simple_floor(int x, int y, int z) {
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
+		d->prop = 0;
+		d->tag = 0;
 		effect_prepend(new_ent, ef_mat);
 	}
 	entity_prepend(g_entities, new_ent);
@@ -335,6 +337,8 @@ void spawn_simple_wall(int x, int y, int z) {
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
+		d->prop = 0;
+		d->tag = 0;
 		effect_prepend(new_ent, ef_mat);
 	}
 	entity_prepend(g_entities, new_ent);
@@ -376,6 +380,8 @@ void spawn_simple_door(int x, int y, int z) {
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
+		d->prop = 0;
+		d->tag = 0;
 		effect_prepend(new_ent, ef_mat);
 	}
 	entity_prepend(g_entities, new_ent);
@@ -402,6 +408,8 @@ void spawn_wood_piece(int x, int y, int z) {
 		effect_material_data *d = (void*)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
+		d->prop = 0;
+		d->tag = 0;
 		effect_prepend(new_ent, ef_mat);
 	}
 	{
@@ -595,7 +603,10 @@ void setup_field(void) {
 
 				effect_s *ef_mat = alloc_effect(EF_MATERIAL);
 				effect_material_data *mat_d = (void*)ef_mat->data;
+				mat_d->type = MAT_GHOST;
 				mat_d->dur = 10;
+				mat_d->prop = 0;
+				mat_d->tag = 0;
 				effect_prepend(e_hand, ef_mat);
 
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
@@ -680,6 +691,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -718,6 +730,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -757,6 +770,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -787,6 +801,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -810,6 +825,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
 		{
 			effect_s *ph_item = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ph_item->data;
@@ -840,6 +856,51 @@ void setup_field(void) {
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
 		attach_generic_entity(new_ent);
+	}
+	{
+		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
+		{
+			effect_s *new_eff = alloc_effect(EF_PH_ITEM);
+			effect_ph_item_data *d = (void*)new_eff->data;
+			d->x = 2;
+			d->y = 2;
+			d->z = 0;
+			d->weight = 4;
+			d->parent = NULL;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_RENDER);
+			effect_render_data *d = (void*)new_eff->data;
+			d->chr = 's';
+			d->r = 128;
+			d->g = 64;
+			d->b = 64;
+			d->a = 0;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)new_eff->data;
+			d->type = MAT_GHOST;
+			d->dur = 20;
+			d->prop = MATP_SMALL;
+			d->tag = 0;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)new_eff->data;
+			d->type = MAT_GHOST;
+			d->dur = 20;
+			d->prop = MATP_SHARP;
+			d->tag = 1;
+			effect_prepend(new_ent, new_eff);
+		}
+		attach_generic_entity(new_ent);
+		entity_prepend(g_entities, new_ent);
+		g_entities = new_ent;
 	}
 	for (int i = 0; i < 5; i ++) {
 		if (i == 2) {
@@ -1021,15 +1082,22 @@ void cmap_drop(cmap_params_t *p) {
 }
 
 void cmap_grab(cmap_params_t *p) {
-	if (p->nargs != 2) {
+	if (p->nargs != 3) {
 		fprintf(stderr, "Wrong number of arguments to cmap_grab\n");
 		return;
 	}
-	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY || p->args[2].type != CMAP_ARG_EFFECT) {
 		fprintf(stderr, "Wrong argument to cmap_grab\n");
 		return;
 	}
-	trigger_grab(p->control_ent, p->args[0].data, p->args[1].data);
+	/* TODO add material tag selection */
+	int mat_tag = 0;
+	effect_s *t = p->args[2].data;
+	if (t != NULL && t->type == EF_MATERIAL) {
+		effect_material_data *d = (void*)t->data;
+		mat_tag = d->tag;
+	}
+	trigger_grab(p->control_ent, p->args[0].data, p->args[1].data, mat_tag);
 }
 
 void cmap_open_door(cmap_params_t *p) {
@@ -1057,20 +1125,35 @@ void cmap_throw(cmap_params_t *p) {
 }
 
 void cmap_attack(cmap_params_t *p) {
-	if (p->nargs != 2) {
+	if (p->nargs != 3) {
 		fprintf(stderr, "Wrong number of arguments to cmap_attack\n");
 		return;
 	}
-	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_EFFECT) {
+	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_EFFECT || p->args[2].type != CMAP_ARG_EFFECT) {
 		fprintf(stderr, "Wrong arguments to cmap_attack\n");
 		return;
 	}
 	effect_limb_slot_data *td = (void*)((effect_s*)p->args[1].data)->data;
+	entity_s *used_weapon = NULL;
+	if (td->item != NULL) {
+		effect_s *t = effect_by_type(td->item->effects, EF_LIMB_HAND);
+		if (t != NULL) {
+			effect_limb_hand_data *d = (void*)t->data;
+			used_weapon = d->item;
+		}
+	}
+	int mat_tag = 0;
+	effect_s *ef_mat = p->args[2].data;
+	if (ef_mat->type == EF_MATERIAL) {
+		effect_material_data *d = (void*)ef_mat->data;
+		mat_tag = d->tag;
+	}
 	trigger_attack(
 		p->control_ent,
 		p->args[0].data,
-		ATK_HAND_PUNCH,
-		td->item
+		ATK_SWING,
+		used_weapon,
+		mat_tag
 	);
 }
 
@@ -1089,10 +1172,10 @@ const cmap_t command_maps[] = {
 	(cmap_t){SDLK_KP_9, NULL, cmap_go},
 	(cmap_t){'p', "He(Put where?)", cmap_put},
 	(cmap_t){'d', "H(Drop what?)", cmap_drop},
-	(cmap_t){'g', "He(Grab what?)", cmap_grab},
+	(cmap_t){'g', "He(Grab what?)g(By what?)", cmap_grab},
 	(cmap_t){'o', "He(Open door?)", cmap_open_door},
 	(cmap_t){'t', "He(Into what?)", cmap_throw},
-	(cmap_t){'a', "e(Attack what?)H", cmap_attack},
+	(cmap_t){'a', "e(Attack what?)Hg", cmap_attack},
 };
 const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
 
@@ -1103,6 +1186,7 @@ typedef enum inputw_type {
 	INPUTW_DIRECTION,
 	INPUTW_LIMB,
 	INPUTW_LIMB_DEFAULT,
+	INPUTW_EFFECT,
 } inputw_type;
 
 typedef struct inputw_tile_s {
@@ -1119,10 +1203,21 @@ typedef struct inputw_entity_s {
 	entity_l_s *cur_sel;
 } inputw_entity_s;
 
+typedef enum inputw_effect_sel_type {
+	INP_EF_ANY,
+	INP_EF_MATERIAL,
+} inputw_effect_sel_type;
+
 typedef struct inputw_limb_s {
 	entity_s *ent;
 	effect_s *cur_sel;
 } inputw_limb_s;
+
+typedef struct inputw_effect_s {
+	entity_s *ent;
+	effect_s *cur_sel;
+	inputw_effect_sel_type type;
+} inputw_effect_s;
 
 #define INPUTW_DATA_SIZE 24
 typedef struct inputw_t {
@@ -1133,6 +1228,7 @@ typedef struct inputw_t {
 		inputw_tile_s u_tile;
 		inputw_entity_s u_entity;
 		inputw_limb_s u_limb;
+		inputw_effect_s u_effect;
 	} data_u;
 } inputw_t;
 
@@ -1201,6 +1297,17 @@ void input_queue_limb_default(entity_s *control_ent) {
 	inputw_queue_n++;
 }
 
+void input_queue_effect(entity_s *control_ent, inputw_effect_sel_type type) {
+	(void)control_ent;
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_EFFECT;
+	inputw_queue[inputw_queue_n].data_u.u_effect.type = type;
+	inputw_queue_n++;
+}
+
 void inputw_clear(void) {
 	inputw_n = 0;
 	/* TODO inputw clear already stored args */
@@ -1244,10 +1351,20 @@ int command_arg_h_big(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
 	int nr;
 	(void)control_ent;
-	(void)s;
 	nr = command_parse_message(s, msg_buf, 32);
 	printf("arg H message (%s)\n", msg_buf);
 	input_queue_limb_default(control_ent);
+	return nr;
+}
+
+int command_arg_g(entity_s *control_ent, const char *s) {
+	char msg_buf[INPUTW_DATA_SIZE];
+	int nr;
+	(void)control_ent;
+	(void)s;
+	nr = command_parse_message(s, msg_buf, 32);
+	printf("arg g message (%s)\n", msg_buf);
+	input_queue_effect(control_ent, INP_EF_MATERIAL);
 	return nr;
 }
 
@@ -1276,6 +1393,9 @@ void command_map_exec(entity_s *control_ent, int n) {
 		} break;
 		case 'H': {
 			t += 1 + command_arg_h_big(control_ent, s+t+1);
+		} break;
+		case 'g': {
+			t += 1 + command_arg_g(control_ent, s+t+1);
 		} break;
 		default: {
 			fprintf(stderr, "Unrecognised command char '%c'\n", s[t]);
@@ -1416,6 +1536,39 @@ int inputw_limb_default_key(SDL_Keycode sym) {
 	return 0;
 }
 
+int inputw_effect_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_effect_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_EFFECT) {
+		fprintf(stderr, "Input layer isn't effect\n");
+		return 0;
+	}
+	inputw_effect_s *e = &inputws[inputw_n - 1].data_u.u_effect;
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_DOWN) {
+		effect_s *t = next_effect_by_type(e->cur_sel, EF_MATERIAL);
+		if (t != NULL)
+			e->cur_sel = t;
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_UP) {
+		effect_s *t = prev_effect_by_type(e->cur_sel, EF_MATERIAL);
+		if (t != NULL)
+			e->cur_sel = t;
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_RETURN) {
+		params_push_effect(e->cur_sel);
+		return INP_M_NEXT;
+	}
+	return 0;
+}
+
 void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
 	(void)control_ent;
 	cam->cursor_x = -1;
@@ -1449,6 +1602,7 @@ void render_list_layers(SDL_Renderer *rend, int x, int y) {
 			inputws[i].type == INPUTW_ENTITY ? "entity" :
 			inputws[i].type == INPUTW_LIMB ? "limb" :
 			inputws[i].type == INPUTW_LIMB_DEFAULT ? "limb_default" :
+			inputws[i].type == INPUTW_EFFECT ? "effect" :
 			"*"
 		);
 		{
@@ -1553,6 +1707,40 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 			e = e->next;
 		}
 	} break;
+	case INPUTW_EFFECT: {
+		int yc = y;
+		entity_s *ent = inputws[inputw_n - 1].data_u.u_effect.ent;
+		effect_s *e = ent == NULL ? NULL : ent->effects;
+		while (e != NULL) {
+			if (e->type == EF_MATERIAL) {
+				effect_material_data *d = (void*)e->data;
+				snprintf(
+					buf, 32, "%p %d %s:%s",
+					e,
+					d->tag,
+					d->prop & MATP_SHARP ? "sharp" : "",
+					d->prop & MATP_SMALL ? "small" : ""
+				);
+				SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+				if (e != inputws[inputw_n - 1].data_u.u_effect.cur_sel) {
+					colo.g /= 2;
+					colo.b /= 2;
+				}
+				SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+				SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+				SDL_Rect target;
+				target.x = x;
+				target.y = yc;
+				target.w = surf->w;
+				target.h = surf->h;
+				yc += target.h;
+				SDL_RenderCopy(rend, tex, NULL, &target);
+				SDL_DestroyTexture(tex);
+				SDL_FreeSurface(surf);
+			}
+			e = e->next;
+		}
+	} break;
 	default: {
 	}
 	}
@@ -1577,6 +1765,34 @@ void inputw_layer_enter() {
 		if (e->ent != NULL)
 			e->cur_sel = e->ent->effects;
 	} break;
+	case INPUTW_EFFECT: {
+		inputw_effect_s *e = &inputws[inputw_n - 1].data_u.u_effect;
+		e->ent = NULL;
+		if (gu_params.nargs != 0) {
+			switch (gu_params.args[gu_params.nargs - 1].type) {
+			case CMAP_ARG_ENTITY: {
+				e->ent = gu_params.args[gu_params.nargs - 1].data;
+			} break;
+			case CMAP_ARG_EFFECT: {
+				effect_s *ef = gu_params.args[gu_params.nargs - 1].data;
+				if (ef->type == EF_LIMB_SLOT) {
+					effect_limb_slot_data *d = (void*)ef->data;
+					entity_s *t = d->item;
+					if (t != NULL) {
+						effect_s *te = effect_by_type(t->effects, EF_LIMB_HAND);
+						if (te != NULL) {
+							effect_limb_hand_data *dt = (void*)te->data;
+							e->ent = dt->item;
+						}
+					}
+				}
+			} break;
+			default: {
+			}
+			}
+		}
+		e->cur_sel = e->ent == NULL ? NULL : e->ent->effects;
+	} break;
 	default: {
 	}
 	}
@@ -1584,6 +1800,7 @@ void inputw_layer_enter() {
 
 int main(int argc, char **argv) {
 	o_init_allocator();
+	gu_things.skip_moving = 1;
 
 	SDL_Init(SDL_INIT_EVERYTHING);
 	TTF_Init();
@@ -1754,6 +1971,9 @@ int main(int argc, char **argv) {
 					} break;
 					case INPUTW_LIMB_DEFAULT: {
 						mask = inputw_limb_default_key(sym);
+					} break;
+					case INPUTW_EFFECT: {
+						mask = inputw_effect_key(sym);
 					} break;
 					default: {
 					}

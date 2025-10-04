@@ -14,11 +14,17 @@ decl-s stair_move int dir int delay :
 decl-s render 'T char chr 'T uint8_t r 'T uint8_t g 'T uint8_t b 'T uint8_t a :
 decl-s nophysics 'empty :
 decl-s limb_slot ent-n item 'T uint32_t tag :
-decl-s limb_hand int grab_type ent-n item :
+decl-s limb_hand
+	int grab_type
+	ent-n item :
 decl-s limb_leg 'empty :
-decl-s material 'T material_type type int dur :
+decl-s material
+	material_type type
+	int dur
+	uint32_t prop
+	uint32_t tag :
 decl-s aim int x int y int z ent-n ent :
-decl-s attack ent-r ent 'E attack_type type int delay ent-r tool :
+decl-s attack ent-r ent 'E attack_type type uint32_t weapon_mat int delay ent-r tool :
 decl-s table 'empty :
 decl-s table_item ent-r item :
 decl-s fire 'empty :
@@ -29,7 +35,7 @@ decl-s rotation 'T rotation_type type int rotation :
 decl-s a_pressure_plate int thresold :
 decl-s a_circle_move 'empty :
 
-decl-s m_grab int eff_tag ent-r ent :
+decl-s m_grab int eff_tag ent-r ent uint32_t mat_tag :
 decl-s m_drop int eff_tag :
 decl-s m_put int eff_tag ent-r where :
 decl-s m_throw

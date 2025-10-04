@@ -48,6 +48,11 @@ typedef enum material_type {
 	MAT_PLANT,
 } material_type;
 
+typedef enum material_prop_mask {
+	MATP_SMALL = 1,
+	MATP_SHARP = 2,
+} material_prop_mask;
+
 typedef enum damage_type {
 	DMGT_BLUNT,
 	DMGT_CUT,
@@ -138,6 +143,7 @@ void effect_prepend(entity_s *s, effect_s *e);
 void liquid_deduplicate(entity_s *s);
 
 effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag);
+effect_s* entity_material_by_tag(entity_s *s, uint32_t tag);
 
 void apply_block_move(entity_s *s);
 void apply_stair_move(entity_s *s);
@@ -165,7 +171,7 @@ void attach_generic_entity(entity_s *s);
 
 void unparent_entity(entity_s *s);
 
-void hand_grab(entity_s *ent, effect_s *hand, entity_s *item);
+void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag);
 void hand_drop(entity_s *ent, effect_s *hand);
 void hand_put(entity_s *ent, effect_s *hand, entity_s *w);
 void hand_throw(entity_s *ent, effect_s *hand, int x, int y, int z, int speed);
@@ -176,13 +182,13 @@ void trigger_move(entity_s *s, int x, int y, int z);
 void trigger_go_up(entity_s *s, int start_delay);
 void trigger_go_down(entity_s *s, int start_delay);
 
-void trigger_grab(entity_s *s, effect_s *h, entity_s *w);
+void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag);
 void trigger_drop(entity_s *s, effect_s *h);
 void trigger_put(entity_s *s, effect_s *h, entity_s *w);
 void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
 void trigger_touch(entity_s *s, effect_s *h, entity_s *w);
 void trigger_punch(entity_s *s, entity_s *e);
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool);
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool, uint32_t weapon_mat);
 void trigger_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 
 void dump_effect(effect_s *e, FILE *stream);
