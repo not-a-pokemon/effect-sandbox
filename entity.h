@@ -48,6 +48,7 @@ typedef enum material_type {
 	MAT_PLANT,
 } material_type;
 
+/* Note that this is a bit-field enum */
 typedef enum material_prop_mask {
 	MATP_SMALL = 1,
 	MATP_SHARP = 2,
@@ -170,6 +171,7 @@ void detach_generic_entity(entity_s *s);
 void attach_generic_entity(entity_s *s);
 
 void unparent_entity(entity_s *s);
+void lift_entity(entity_s *s);
 
 void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag);
 void hand_drop(entity_s *ent, effect_s *hand);

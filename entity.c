@@ -813,7 +813,9 @@ void apply_block_move(entity_s *s) {
 		effect_s *ef_crea = effect_by_type(s->effects, EF_PH_ITEM);
 		if (ef_crea != NULL) {
 			effect_ph_item_data *ef_crea_d = (void*)ef_crea->data;
-			/* if (ef_crea_d->parent != NULL && ef_crea_d->parent_type != PARENT_REF_PLACE) { */
+			if (ef_crea_d->parent != NULL && ef_crea_d->parent_type == PARENT_REF_PLACE) {
+				lift_entity(s);
+			}
 			if (ef_crea_d->parent != NULL) {
 				goto CANT_MOVE;
 			}
@@ -1950,10 +1952,13 @@ void unparent_entity(entity_s *s) {
 	}
 	if (d->parent_type == PARENT_REF_HELD) {
 		int x, y, z;
+		entity_s *p = d->parent;
+		effect_s *t = p->effects;
+		d->parent = NULL;
 		if (entity_coords(s, &x, &y, &z)) {
 			entity_set_coords(s, x, y, z);
+			attach_generic_entity(s);
 		}
-		effect_s *t = d->parent->effects;
 		while (t != NULL) {
 			if (t->type == EF_LIMB_HAND) {
 				effect_limb_hand_data *td = (void*)t->data;
@@ -1964,25 +1969,53 @@ void unparent_entity(entity_s *s) {
 			}
 			t = t->next;
 		}
-		d->parent = NULL;
 	}
 	if (d->parent_type == PARENT_REF_PLACE) {
 		int x, y, z;
+		entity_s *p = d->parent;
+		effect_s *t = p->effects;
+		d->parent = NULL;
 		if (entity_coords(s, &x, &y, &z)) {
 			entity_set_coords(s, x, y, z);
+			attach_generic_entity(s);
 		}
-		effect_s *t = d->parent->effects;
 		while (t != NULL) {
 			if (t->type == EF_TABLE_ITEM) {
 				effect_table_item_data *td = (void*)t->data;
 				if (td->item == s) {
-					effect_unlink(d->parent, t);
+					effect_unlink(p, t);
 					break;
 				}
 			}
 			t = t->next;
 		}
-		d->parent = NULL;
+	}
+}
+
+void lift_entity(entity_s *s) {
+	effect_s *ph = effect_by_type(s->effects, EF_PH_ITEM);
+	if (ph == NULL) {
+		return;
+	}
+	effect_ph_item_data *d = (void*)ph->data;
+	if (d->parent == NULL) {
+		return;
+	}
+	if (d->parent_type == PARENT_REF_HELD || d->parent_type == PARENT_REF_PLACE) {
+		entity_s *p = d->parent;
+		effect_s *pe = effect_by_type(p->effects, EF_PH_ITEM);
+		if (pe == NULL) {
+			unparent_entity(s);
+			return;
+		}
+		effect_ph_item_data *pd = (void*)pe->data;
+		if (pd->parent == NULL) {
+			unparent_entity(s);
+		} else {
+			d->parent = pd->parent;
+			d->parent_type = pd->parent_type;
+		}
+		return;
 	}
 }
 

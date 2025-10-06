@@ -480,6 +480,15 @@ void spawn_circle_mover(int x, int y, int z) {
 		effect_prepend(new_ent, ef_rend);
 	}
 	{
+		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
+		effect_material_data *d = (void*)ef_mat->data;
+		d->type = MAT_STONE;
+		d->dur = 10;
+		d->prop = 0;
+		d->tag = 0;
+		effect_prepend(new_ent, ef_mat);
+	}
+	{
 		effect_s *ef_cir = alloc_effect(EF_A_CIRCLE_MOVE);
 		effect_prepend(new_ent, ef_cir);
 	}
@@ -1090,7 +1099,6 @@ void cmap_grab(cmap_params_t *p) {
 		fprintf(stderr, "Wrong argument to cmap_grab\n");
 		return;
 	}
-	/* TODO add material tag selection */
 	int mat_tag = 0;
 	effect_s *t = p->args[2].data;
 	if (t != NULL && t->type == EF_MATERIAL) {
@@ -1563,8 +1571,10 @@ int inputw_effect_key(SDL_Keycode sym) {
 		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_RETURN) {
-		params_push_effect(e->cur_sel);
-		return INP_M_NEXT;
+		if (e->cur_sel != NULL) {
+			params_push_effect(e->cur_sel);
+			return INP_M_NEXT;
+		}
 	}
 	return 0;
 }
@@ -1763,7 +1773,7 @@ void inputw_layer_enter() {
 	case INPUTW_LIMB: {
 		inputw_limb_s *e = &inputws[inputw_n - 1].data_u.u_limb;
 		if (e->ent != NULL)
-			e->cur_sel = e->ent->effects;
+			e->cur_sel = effect_by_type(e->ent->effects, EF_LIMB_SLOT);
 	} break;
 	case INPUTW_EFFECT: {
 		inputw_effect_s *e = &inputws[inputw_n - 1].data_u.u_effect;
@@ -1791,7 +1801,7 @@ void inputw_layer_enter() {
 			}
 			}
 		}
-		e->cur_sel = e->ent == NULL ? NULL : e->ent->effects;
+		e->cur_sel = e->ent == NULL ? NULL : effect_by_type(e->ent->effects, EF_MATERIAL);
 	} break;
 	default: {
 	}
