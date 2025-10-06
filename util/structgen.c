@@ -286,21 +286,21 @@ int main(int argc, char **argv) {
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], ".s")) {
 			if (inp_name != NULL)
-				die("Duplitcate .s\n");
+				die("Duplicate .s\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .s\n");
 			struct_name = argv[i + 1];
 			i++;
 		} else if (!strcmp(argv[i], ".f")) {
-			if (inp_name != NULL)
-				die("Duplitcate .f\n");
+			if (func_name != NULL)
+				die("Duplicate .f\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .f\n");
 			func_name = argv[i + 1];
 			i++;
 		} else if (!strcmp(argv[i], ".inp")) {
 			if (inp_name != NULL)
-				die("Duplitcate .inp\n");
+				die("Duplicate .inp\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .inp\n");
 			inp_name = argv[i + 1];
