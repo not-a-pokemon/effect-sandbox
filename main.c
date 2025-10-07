@@ -791,6 +791,15 @@ void setup_field(void) {
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
+			effect_s *ef_mat = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)ef_mat->data;
+			d->type = MAT_WOOD;
+			d->dur = 10;
+			d->prop = 0;
+			d->tag = 0;
+			effect_prepend(new_ent, ef_mat);
+		}
+		{
 			effect_s *new_eff = alloc_effect(EF_RENDER);
 			effect_render_data *d = (void*)new_eff->data;
 			d->r = 60;

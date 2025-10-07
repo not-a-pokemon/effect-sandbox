@@ -179,6 +179,8 @@ effect_s *effect_by_ptr(effect_s *s, effect_s *f) {
 }
 
 effect_s* next_effect_by_type(effect_s *s, effect_type t) {
+	if (s == NULL)
+		return NULL;
 	if (s->next == NULL)
 		return NULL;
 	s = s->next;
@@ -191,6 +193,8 @@ effect_s* next_effect_by_type(effect_s *s, effect_type t) {
 }
 
 effect_s* prev_effect_by_type(effect_s *s, effect_type t) {
+	if (s == NULL)
+		return NULL;
 	if (s->prev == NULL)
 		return NULL;
 	s = s->prev;
@@ -464,12 +468,8 @@ void apply_reactions(entity_s *s) {
 				while (t != NULL) {
 					if (t->type == EF_TABLE_ITEM) {
 						effect_table_item_data *d = (void*)t->data;
-						effect_s *tt = t;
 						t = t->next;
 						unparent_entity(d->item);
-						attach_generic_entity(d->item);
-						effect_unlink(s, tt);
-						free_effect(tt);
 					} else {
 						t = t->next;
 					}
@@ -1954,10 +1954,12 @@ void unparent_entity(entity_s *s) {
 		int x, y, z;
 		entity_s *p = d->parent;
 		effect_s *t = p->effects;
-		d->parent = NULL;
 		if (entity_coords(s, &x, &y, &z)) {
+			d->parent = NULL;
 			entity_set_coords(s, x, y, z);
 			attach_generic_entity(s);
+		} else {
+			d->parent = NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_LIMB_HAND) {
@@ -1974,16 +1976,19 @@ void unparent_entity(entity_s *s) {
 		int x, y, z;
 		entity_s *p = d->parent;
 		effect_s *t = p->effects;
-		d->parent = NULL;
 		if (entity_coords(s, &x, &y, &z)) {
+			d->parent = NULL;
 			entity_set_coords(s, x, y, z);
 			attach_generic_entity(s);
+		} else {
+			d->parent = NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_TABLE_ITEM) {
 				effect_table_item_data *td = (void*)t->data;
 				if (td->item == s) {
 					effect_unlink(p, t);
+					free_effect(t);
 					break;
 				}
 			}
