@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
 	int i;
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], ".s")) {
-			if (inp_name != NULL)
+			if (struct_name != NULL)
 				die("Duplicate .s\n");
 			if (i + 1 >= argc)
 				die("Expected filename after .s\n");
