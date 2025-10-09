@@ -98,6 +98,7 @@ typedef struct decl_t {
 	char name[MAX_NAME_LEN];
 	unsigned empty:1;
 	unsigned exter:1;
+	unsigned exter_rem:1;
 	decl_field_t *fields;
 	decl_field_t *last_field;
 } decl_t;
@@ -153,6 +154,8 @@ int test_decl(FILE *inp) {
 	decls[decl_n - 1].fields = NULL;
 	decls[decl_n - 1].last_field = NULL;
 	decls[decl_n - 1].empty = 0;
+	decls[decl_n - 1].exter = 0;
+	decls[decl_n - 1].exter_rem = 0;
 	static char type_name[MAX_NAME_LEN];
 	int type_tag = 0, name_w = 0;
 	while (1) {
@@ -178,6 +181,8 @@ int test_decl(FILE *inp) {
 				decls[decl_n - 1].empty = 1;
 			} else if (!strcmp("'external", consume_buf)) {
 				decls[decl_n - 1].exter = 1;
+			} else if (!strcmp("'external-remover", consume_buf)) {
+				decls[decl_n - 1].exter_rem = 1;
 			} else if (!strcmp("ent-r", consume_buf)) {
 				type_tag = ENT_R_TAG;
 				type_name[0] = '\0';
@@ -280,6 +285,77 @@ void put_dumper(FILE *to, decl_t *d) {
 	fprintf(to, "}\n");
 }
 
+int has_remover(decl_t *d) {
+	if (d->exter_rem)
+		return 1;
+	decl_field_t *p = d->fields;
+	while (p != NULL) {
+		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG)
+			return 1;
+		p = p->next;
+	}
+	return 0;
+}
+
+void put_remover(FILE *to, decl_t *d) {
+	fprintf(
+		to,
+		"int effect_rem_%s(entity_s *s, effect_s *e) {\n"
+		"\t(void)s; (void)e;\n"
+		"\teffect_%s_data *d = (void*)e->data;\n",
+		d->name, d->name
+	);
+	decl_field_t *p = d->fields;
+	while (p != NULL) {
+		if (p->type_tag == ENT_R_TAG) {
+			fprintf(
+				to,
+				"\tif (d->%s == NULL || effect_by_type(d->%s->effects, EF_B_NONEXISTENT) != NULL) return 1;\n",
+				p->name, p->name
+			);
+		} else if (p->type_tag == ENT_N_TAG) {
+			fprintf(
+				to,
+				"\tif (d->%s != NULL && effect_by_type(d->%s->effects, EF_B_NONEXISTENT) != NULL) d->%s = NULL;\n",
+				p->name, p->name, p->name
+			);
+		}
+		p = p->next;
+	}
+	fprintf(to, "\treturn 0;\n}\n");
+}
+
+#define TABLE_EMPTY_NULL 1
+#define TABLE_EMPTY_ZERO 2
+#define TABLE_SKIP_NON_REM 4
+
+void put_table(FILE *to, const char *type_name, const char *table_name, const char *data_pre, const char *data_after, unsigned mask) {
+	size_t i, j;
+	fprintf(to, "\n%s %s[] = {\n", type_name, table_name);
+	for (i = 0; i < decl_n; i++) {
+		fprintf(to, "\t[EF_");
+		for (j = 0; decls[i].name[j]; j++) {
+			fputc(toupper(decls[i].name[j]), to);
+		}
+		fprintf(to, "] = ");
+		if ((mask & TABLE_EMPTY_NULL) && decls[i].empty) {
+			fprintf(to, "NULL");
+		} else if ((mask & TABLE_EMPTY_ZERO) && decls[i].empty) {
+			fprintf(to, "0");
+		} else if ((mask & TABLE_SKIP_NON_REM) && !has_remover(&decls[i])) {
+			fprintf(to, "NULL");
+		} else {
+			fprintf(to, "%s", data_pre);
+			for (j = 0; decls[i].name[j]; j++) {
+				fputc(decls[i].name[j], to);
+			}
+			fprintf(to, "%s", data_after);
+		}
+		fprintf(to, ",\n");
+	}
+	fprintf(to, "};\n");
+}
+
 int main(int argc, char **argv) {
 	const char *struct_name = NULL, *func_name = NULL, *inp_name = NULL;
 	int i;
@@ -327,17 +403,33 @@ int main(int argc, char **argv) {
 	{
 		size_t i;
 		for (i = 0; i < decl_n; i++) {
-			if (decls[i].empty || decls[i].exter)
-				continue;
-			if (struct_file != NULL) {
+			/*
+			 * A structure is generated. It shouldn't be empty.
+			 * `exter' flag signifies that it's written somewhere else.
+			 */
+			if (struct_file != NULL && !decls[i].empty && !decls[i].exter) {
 				printf("!! struct %s\n", decls[i].name);
 				put_struct(struct_file, &decls[i]);
 			}
 			if (func_file != NULL) {
-				printf("!! loader %s\n", decls[i].name);
-				put_loader(func_file, &decls[i]);
-				printf("!! dumper %s\n", decls[i].name);
-				put_dumper(func_file, &decls[i]);
+				/*
+				 * Load/Dump functions are generated. They aren't if the data is empty.
+				 * `exter' flag signifies they are written somewhere else.
+				 */
+				if (!decls[i].empty && !decls[i].exter) {
+					printf("!! loader %s\n", decls[i].name);
+					put_loader(func_file, &decls[i]);
+					printf("!! dumper %s\n", decls[i].name);
+					put_dumper(func_file, &decls[i]);
+				}
+				/*
+				 * Remover is generated. It isn't if it would be empty.
+				 * `exter_rem' flag signifies it's written somewhere else.
+				 */
+				if (!decls[i].exter_rem && has_remover(&decls[i])) {
+					printf("!! remover %s\n", decls[i].name);
+					put_remover(func_file, &decls[i]);
+				}
 			}
 		}
 	}
@@ -354,59 +446,9 @@ int main(int argc, char **argv) {
 		fprintf(struct_file, "\tEF_UNKNOWN = -1\n} effect_type;\n");
 	}
 	if (func_file != NULL) {
-		size_t i, j;
-		fprintf(func_file, "\nint effect_data_size[] = {\n");
-		for (i = 0; i < decl_n; i++) {
-			fprintf(func_file, "\t[EF_");
-			for (j = 0; decls[i].name[j]; j++) {
-				fputc(toupper(decls[i].name[j]), func_file);
-			}
-			fprintf(func_file, "] = ");
-			if (decls[i].empty) {
-				fprintf(func_file, "0");
-			} else {
-				fprintf(func_file, "sizeof(effect_");
-				for (j = 0; decls[i].name[j]; j++) {
-					fputc(decls[i].name[j], func_file);
-				}
-				fprintf(func_file, "_data)");
-			}
-			fprintf(func_file, ",\n");
-		}
-		fprintf(func_file, "};\n");
-		fprintf(func_file, "\neffect_dump_t effect_dump_functions[] = {\n");
-		for (i = 0; i < decl_n; i++) {
-			fprintf(func_file, "\t[EF_");
-			for (j = 0; decls[i].name[j]; j++) {
-				fputc(toupper(decls[i].name[j]), func_file);
-			}
-			if (decls[i].empty) {
-				fprintf(func_file, "] = NULL");
-			} else {
-				fprintf(func_file, "] = effect_dump_");
-				for (j = 0; decls[i].name[j]; j++) {
-					fputc(decls[i].name[j], func_file);
-				}
-			}
-			fprintf(func_file, ",\n");
-		}
-		fprintf(func_file, "};\n");
-		fprintf(func_file, "\neffect_scan_t effect_scan_functions[] = {\n");
-		for (i = 0; i < decl_n; i++) {
-			fprintf(func_file, "\t[EF_");
-			for (j = 0; decls[i].name[j]; j++) {
-				fputc(toupper(decls[i].name[j]), func_file);
-			}
-			if (decls[i].empty) {
-				fprintf(func_file, "] = NULL");
-			} else {
-				fprintf(func_file, "] = effect_scan_");
-				for (j = 0; decls[i].name[j]; j++) {
-					fputc(decls[i].name[j], func_file);
-				}
-			}
-			fprintf(func_file, ",\n");
-		}
-		fprintf(func_file, "};\n");
+		put_table(func_file, "int", "effect_data_size", "sizeof(effect_", "_data)", TABLE_EMPTY_ZERO);
+		put_table(func_file, "effect_dump_t", "effect_dump_functions", "effect_dump_", "", TABLE_EMPTY_NULL);
+		put_table(func_file, "effect_scan_t", "effect_scan_functions", "effect_scan_", "", TABLE_EMPTY_NULL);
+		put_table(func_file, "effect_rem_t", "effect_rem_functions", "effect_rem_", "", TABLE_SKIP_NON_REM);
 	}
 }

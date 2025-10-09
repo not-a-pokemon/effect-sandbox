@@ -104,10 +104,12 @@ typedef sector_s sectors_s;
 
 typedef void (*effect_dump_t)(struct effect_s *e, FILE *stream);
 typedef void (*effect_scan_t)(struct effect_s *e, int n_ent, entity_s **a_ent, FILE *stream);
+typedef int (*effect_rem_t)(struct entity_s *s, struct effect_s *e);
 
 extern int effect_data_size[];
 extern effect_dump_t effect_dump_functions[];
 extern effect_scan_t effect_scan_functions[];
+extern effect_rem_t effect_rem_functions[];
 extern sectors_s *g_sectors;
 extern entity_s *g_entities;
 extern rng_state_s *g_dice;

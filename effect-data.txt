@@ -6,7 +6,7 @@ decl-s b_index
 	#/ entity indices are stored in a different way
 	int index :
 decl-s ph_block 'external :
-decl-s ph_item int x int y int z int weight ent-r parent 'T parent_ref_type parent_type :
+decl-s ph_item int x int y int z int weight ent-n parent 'T parent_ref_type parent_type :
 decl-s falling 'empty :
 decl-s tracer int x int y int z int cur_x int cur_y int cur_z int speed :
 decl-s block_move int x int y int z int delay :
@@ -29,7 +29,7 @@ decl-s table 'empty :
 decl-s table_item ent-r item :
 decl-s fire 'empty :
 decl-s s_touch 'empty :
-decl-s s_bump ent-r ent int force :
+decl-s s_bump ent-n ent int force :
 decl-s s_dmg 'E damage_type type int val :
 decl-s rotation 'T rotation_type type int rotation :
 decl-s a_pressure_plate int thresold :

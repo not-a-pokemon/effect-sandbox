@@ -532,15 +532,9 @@ entity_s* clear_nonexistent(entity_s *sl) {
 		effect_s *e = s->effects;
 		while (e != NULL) {
 			effect_s *next = e->next;
-			/* TODO generic effect removal, generated */
-			if (e->type == EF_LIMB_SLOT) {
-				effect_limb_slot_data *limb_slot_d = (void*)e->data;
-				if (limb_slot_d->item != NULL && effect_by_type(limb_slot_d->item->effects, EF_B_NONEXISTENT) != NULL) {
-					limb_slot_d->item = NULL;
-				}
-			} else if (e->type == EF_ATTACK) {
-				effect_attack_data *at_d = (void*)e->data;
-				if (at_d->ent != NULL && effect_by_type(at_d->ent->effects, EF_B_NONEXISTENT) != NULL) {
+			effect_rem_t f = effect_rem_functions[e->type];
+			if (f != NULL) {
+				if (f(s, e)) {
 					effect_unlink(s, e);
 					free_effect(e);
 				}

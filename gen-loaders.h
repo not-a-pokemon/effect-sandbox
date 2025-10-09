@@ -27,6 +27,12 @@ void effect_dump_ph_item(effect_s *e, FILE *stream) {
 	{ int t; if (d->parent == NULL){t = -1;}else{t = entity_get_index(d->parent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->parent_type, sizeof(parent_ref_type), 1, stream);
 }
+int effect_rem_ph_item(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_ph_item_data *d = (void*)e->data;
+	if (d->parent != NULL && effect_by_type(d->parent->effects, EF_B_NONEXISTENT) != NULL) d->parent = NULL;
+	return 0;
+}
 void effect_scan_tracer(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_tracer_data *d = (void*)e->data;
@@ -102,6 +108,12 @@ void effect_dump_limb_slot(effect_s *e, FILE *stream) {
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->tag, sizeof(uint32_t), 1, stream);
 }
+int effect_rem_limb_slot(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_limb_slot_data *d = (void*)e->data;
+	if (d->item != NULL && effect_by_type(d->item->effects, EF_B_NONEXISTENT) != NULL) d->item = NULL;
+	return 0;
+}
 void effect_scan_limb_hand(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_limb_hand_data *d = (void*)e->data;
@@ -112,6 +124,12 @@ void effect_dump_limb_hand(effect_s *e, FILE *stream) {
 	effect_limb_hand_data *d = (void*)e->data;
 	fwrite(&d->grab_type, sizeof(int), 1, stream);
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_limb_hand(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_limb_hand_data *d = (void*)e->data;
+	if (d->item != NULL && effect_by_type(d->item->effects, EF_B_NONEXISTENT) != NULL) d->item = NULL;
+	return 0;
 }
 void effect_scan_material(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -143,6 +161,12 @@ void effect_dump_aim(effect_s *e, FILE *stream) {
 	fwrite(&d->z, sizeof(int), 1, stream);
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 }
+int effect_rem_aim(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_aim_data *d = (void*)e->data;
+	if (d->ent != NULL && effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) d->ent = NULL;
+	return 0;
+}
 void effect_scan_attack(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_attack_data *d = (void*)e->data;
@@ -160,6 +184,13 @@ void effect_dump_attack(effect_s *e, FILE *stream) {
 	fwrite(&d->delay, sizeof(int), 1, stream);
 	{ int t; if (d->tool == NULL){t = -1;}else{t = entity_get_index(d->tool);} fwrite(&t, sizeof(int), 1, stream); }
 }
+int effect_rem_attack(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_attack_data *d = (void*)e->data;
+	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	if (d->tool == NULL || effect_by_type(d->tool->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
 void effect_scan_table_item(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_table_item_data *d = (void*)e->data;
@@ -168,6 +199,12 @@ void effect_scan_table_item(effect_s *e, int n_ent, entity_s **a_ent, FILE *stre
 void effect_dump_table_item(effect_s *e, FILE *stream) {
 	effect_table_item_data *d = (void*)e->data;
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_table_item(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_table_item_data *d = (void*)e->data;
+	if (d->item == NULL || effect_by_type(d->item->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
 }
 void effect_scan_s_bump(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -179,6 +216,12 @@ void effect_dump_s_bump(effect_s *e, FILE *stream) {
 	effect_s_bump_data *d = (void*)e->data;
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->force, sizeof(int), 1, stream);
+}
+int effect_rem_s_bump(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_s_bump_data *d = (void*)e->data;
+	if (d->ent != NULL && effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) d->ent = NULL;
+	return 0;
 }
 void effect_scan_s_dmg(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -224,6 +267,12 @@ void effect_dump_m_grab(effect_s *e, FILE *stream) {
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
+int effect_rem_m_grab(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_grab_data *d = (void*)e->data;
+	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
 void effect_scan_m_drop(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_drop_data *d = (void*)e->data;
@@ -243,6 +292,12 @@ void effect_dump_m_put(effect_s *e, FILE *stream) {
 	effect_m_put_data *d = (void*)e->data;
 	fwrite(&d->eff_tag, sizeof(int), 1, stream);
 	{ int t; if (d->where == NULL){t = -1;}else{t = entity_get_index(d->where);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_m_put(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_put_data *d = (void*)e->data;
+	if (d->where == NULL || effect_by_type(d->where->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
 }
 void effect_scan_m_throw(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -278,6 +333,12 @@ void effect_dump_m_aim_for(effect_s *e, FILE *stream) {
 	fwrite(&d->z, sizeof(int), 1, stream);
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 }
+int effect_rem_m_aim_for(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_aim_for_data *d = (void*)e->data;
+	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
 void effect_scan_m_touch(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_touch_data *d = (void*)e->data;
@@ -288,6 +349,12 @@ void effect_dump_m_touch(effect_s *e, FILE *stream) {
 	effect_m_touch_data *d = (void*)e->data;
 	fwrite(&d->eff_tag, sizeof(int), 1, stream);
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_m_touch(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_touch_data *d = (void*)e->data;
+	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
 }
 void effect_scan_stats(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -332,6 +399,12 @@ void effect_scan_container_item(effect_s *e, int n_ent, entity_s **a_ent, FILE *
 void effect_dump_container_item(effect_s *e, FILE *stream) {
 	effect_container_item_data *d = (void*)e->data;
 	{ int t; if (d->item == NULL){t = -1;}else{t = entity_get_index(d->item);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_container_item(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_container_item_data *d = (void*)e->data;
+	if (d->item == NULL || effect_by_type(d->item->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
 }
 void effect_scan_wet(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -469,4 +542,46 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_CONTAINER] = effect_scan_container,
 	[EF_CONTAINER_ITEM] = effect_scan_container_item,
 	[EF_WET] = effect_scan_wet,
+};
+
+effect_rem_t effect_rem_functions[] = {
+	[EF_B_NONEXISTENT] = NULL,
+	[EF_B_INDEX] = NULL,
+	[EF_PH_BLOCK] = NULL,
+	[EF_PH_ITEM] = effect_rem_ph_item,
+	[EF_FALLING] = NULL,
+	[EF_TRACER] = NULL,
+	[EF_BLOCK_MOVE] = NULL,
+	[EF_STAIR_MOVE] = NULL,
+	[EF_RENDER] = NULL,
+	[EF_NOPHYSICS] = NULL,
+	[EF_LIMB_SLOT] = effect_rem_limb_slot,
+	[EF_LIMB_HAND] = effect_rem_limb_hand,
+	[EF_LIMB_LEG] = NULL,
+	[EF_MATERIAL] = NULL,
+	[EF_AIM] = effect_rem_aim,
+	[EF_ATTACK] = effect_rem_attack,
+	[EF_TABLE] = NULL,
+	[EF_TABLE_ITEM] = effect_rem_table_item,
+	[EF_FIRE] = NULL,
+	[EF_S_TOUCH] = NULL,
+	[EF_S_BUMP] = effect_rem_s_bump,
+	[EF_S_DMG] = NULL,
+	[EF_ROTATION] = NULL,
+	[EF_A_PRESSURE_PLATE] = NULL,
+	[EF_A_CIRCLE_MOVE] = NULL,
+	[EF_M_GRAB] = effect_rem_m_grab,
+	[EF_M_DROP] = NULL,
+	[EF_M_PUT] = effect_rem_m_put,
+	[EF_M_THROW] = NULL,
+	[EF_M_AIM_FOR] = effect_rem_m_aim_for,
+	[EF_M_TOUCH] = effect_rem_m_touch,
+	[EF_R_TOUCH_RNG_TP] = NULL,
+	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
+	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_STATS] = NULL,
+	[EF_PH_LIQUID] = NULL,
+	[EF_CONTAINER] = NULL,
+	[EF_CONTAINER_ITEM] = effect_rem_container_item,
+	[EF_WET] = NULL,
 };
