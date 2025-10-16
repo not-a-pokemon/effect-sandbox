@@ -868,14 +868,21 @@ CANT_MOVE:
 }
 
 void apply_stair_move(entity_s *s) {
+	effect_s *ef_stats = effect_by_type(s->effects, EF_STATS);
+	int speed = 64;
+	if (ef_stats != NULL) {
+		effect_stats_data *stats_d = (void*)ef_stats->data;
+		speed = stats_d->spd;
+	}
 	effect_s *ef_move = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef_move != NULL) {
 		effect_s *ef_crea = effect_by_type(s->effects, EF_PH_ITEM);
 		if (ef_crea != NULL) {
 			effect_stair_move_data *ef_move_d = (void*)ef_move->data;
 			if (ef_move_d->delay > 0) {
-				ef_move_d->delay --;
-			} else {
+				ef_move_d->delay -= speed;
+			}
+			if (ef_move_d->delay <= 0) {
 				effect_ph_item_data *ef_crea_d = (void*)ef_crea->data;
 				int x = ef_crea_d->x;
 				int y = ef_crea_d->y;
@@ -1015,12 +1022,9 @@ void apply_tracer(entity_s *s) {
 			d->ent = w;
 			d->force = tracer_d->speed;
 			effect_prepend(s, ef_bump);
-			effect_unlink(s, tracer);
-			free_effect(tracer);
-			return;
+			break;
 		}
 	}
-	/* tracer_d->cur_z -= G_TRACER_GRAVITY; */
 	effect_unlink(s, tracer);
 	free_effect(tracer);
 }
@@ -1212,7 +1216,7 @@ void trigger_move(entity_s *s, int x, int y, int z) {
 	ed->z = z;
 }
 
-void trigger_go_up(entity_s *s, int start_delay) {
+void trigger_go_up(entity_s *s) {
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
@@ -1221,11 +1225,11 @@ void trigger_go_up(entity_s *s, int start_delay) {
 		s->effects = ef;
 	}
 	effect_stair_move_data *ed = (void*)ef->data;
-	ed->delay = start_delay;
+	ed->delay = G_MOVE_START_DELAY;
 	ed->dir = 1;
 }
 
-void trigger_go_down(entity_s *s, int start_delay) {
+void trigger_go_down(entity_s *s) {
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
@@ -1234,7 +1238,7 @@ void trigger_go_down(entity_s *s, int start_delay) {
 		s->effects = ef;
 	}
 	effect_stair_move_data *ed = (void*)ef->data;
-	ed->delay = start_delay;
+	ed->delay = G_MOVE_START_DELAY;
 	ed->dir = -1;
 }
 
@@ -1427,10 +1431,6 @@ void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 	effect_limb_hand_data *hand_d = (void*)ef_hand->data;
 	if (hand_d->item == NULL) {
 		return;
-	}
-	if (effect_by_type(hand_d->item->effects, EF_FALLING) == NULL) {
-		effect_s *ef_fall = alloc_effect(EF_FALLING);
-		effect_prepend(hand_d->item, ef_fall);
 	}
 	effect_s *ef_tracer = alloc_effect(EF_TRACER);
 	effect_tracer_data *tracer_d = (void*)ef_tracer->data;
@@ -1887,50 +1887,35 @@ entity_s* tracer_check_bump(entity_s *s, int x, int y, int z) {
 	coord_normalize(&sy, &cy);
 	coord_normalize(&sz, &cz);
 	sector_s *sect = sector_get_sector(g_sectors, cx, cy, cz);
-	effect_s *ef_aim = effect_by_type(s->effects, EF_AIM);
-	if (sect != NULL) {
-		entity_l_s *cur;
-		if (ef_aim != NULL) {
-			effect_aim_data *aim_d = (void*)ef_aim->data;
-			/* if (aim_d->x != ex || aim_d->y != ey || aim_d->z != ez) */
-			/* 	goto USUAL; */
-			cur = sect->block_entities[sx][sy][sz];
-			int t = rng_next(g_dice);
-			if (t % 7 == 3) {
-				goto USUAL;
-			}
-			while (cur != NULL) {
-				if (cur->ent == s) {
-					goto SKIP1;
-				}
-				if (cur->ent == aim_d->ent) {
-					return cur->ent;
-				}
-SKIP1:
-				cur = cur->next;
-			}
+	if (sect == NULL)
+		return NULL;
+	entity_l_s *el = sector_get_block_entities(sect, sx, sy, sz);
+	entity_l_s *cur = el;
+	int total_hit_val = 0;
+	while (cur != NULL) {
+		effect_s *ef_ph = effect_by_type(cur->ent->effects, EF_PH_ITEM);
+		if (ef_ph != NULL) {
+			total_hit_val += entity_size(cur->ent);
 		}
-USUAL:
-		cur = sect->block_entities[sx][sy][sz];
-		while (cur != NULL) {
-			if (cur->ent == s)
-				goto SKIP;
-			effect_s *ph = effect_by_type(cur->ent->effects, EF_PH_ITEM);
-			if (ph != NULL) {
-				if (effect_by_type(cur->ent->effects, EF_TRACER) != NULL) {
-					goto SKIP;
-				}
-				effect_ph_item_data *d = (void*)ph->data;
-				if (d->parent == NULL) {
-					int t = rng_next(g_dice);
-					if (t % 16 == 5) {
-						return cur->ent;
-					}
-				}
-			}
-SKIP:
-			cur = cur->next;
+		cur = cur->next;
+	}
+	int mx = 256;
+	if (mx < total_hit_val)
+		mx = total_hit_val + 1;
+	// TODO rng_next_range
+	int random_val = rng_next(g_dice) % mx;
+	if (random_val > total_hit_val)
+		return NULL;
+	cur = el;
+	int cur_hit_val = 0;
+	while (cur != NULL) {
+		effect_s *ef_ph = effect_by_type(cur->ent->effects, EF_PH_ITEM);
+		if (ef_ph != NULL) {
+			cur_hit_val += entity_size(cur->ent);
+			if (cur_hit_val >= random_val)
+				return cur->ent;
 		}
+		cur = cur->next;
 	}
 	return NULL;
 }
@@ -2029,6 +2014,19 @@ int entity_weight(entity_s *s) {
 		return dl->amount;
 	}
 	return d->weight;
+}
+
+int entity_size(entity_s *s) {
+	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
+	if (ph_item == NULL)
+		return 0;
+	// effect_ph_item_data *d = (void*)ph_item->data;
+	effect_s *ph_liq = effect_by_type(s->effects, EF_PH_LIQUID);
+	if (ph_liq != NULL) {
+		effect_ph_liquid_data *dl = (void*)ph_liq->data;
+		return dl->amount;
+	}
+	return 1;
 }
 
 #include "gen-loaders.h"

@@ -1030,11 +1030,11 @@ void cmap_wait(cmap_params_t *p) {
 }
 
 void cmap_go_up(cmap_params_t *p) {
-	trigger_go_up(p->control_ent, 1);
+	trigger_go_up(p->control_ent);
 }
 
 void cmap_go_down(cmap_params_t *p) {
-	trigger_go_down(p->control_ent, 1);
+	trigger_go_down(p->control_ent);
 }
 
 int key_to_direction(int key, int *x, int *y) {
@@ -1143,11 +1143,48 @@ void cmap_throw(cmap_params_t *p) {
 		fprintf(stderr, "Wrong number of arguments to cmap_throw\n");
 		return;
 	}
-	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_ENTITY) {
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
 		fprintf(stderr, "Wrong arguments to cmap_throw\n");
 		return;
 	}
-	/* TODO */
+	effect_s *used_hand = p->args[0].data;
+	entity_s *target = p->args[1].data;
+	if (target != NULL) {
+		int x, y, z, xd, yd, zd, xs, ys, zs;
+		if (entity_coords(target, &x, &y, &z) && entity_coords(p->control_ent, &xs, &ys, &zs)) {
+			xd = x - xs;
+			yd = y - ys;
+			zd = z - zs;
+			int g = gcd(gcd(abs(xd), abs(yd)), abs(zd));
+			xd /= g;
+			yd /= g;
+			zd /= g;
+			int xa = abs(xd), ya = abs(yd), za = abs(zd);
+			int
+				x_mul = xa ? (G_TRACER_RESOLUTION + xa - 1) / xa : G_TRACER_RESOLUTION + 1,
+				y_mul = ya ? (G_TRACER_RESOLUTION + ya - 1) / ya : G_TRACER_RESOLUTION + 1,
+				z_mul = za ? (G_TRACER_RESOLUTION + za - 1) / za : G_TRACER_RESOLUTION + 1;
+			int t = x_mul;
+			if (y_mul < t)
+				t = y_mul;
+			if (z_mul < t)
+				t = z_mul;
+			if (t == G_TRACER_RESOLUTION + 1)
+				t = 0;
+			xd *= t;
+			yd *= t;
+			zd *= t;
+			int maxdist = 0;
+			if (maxdist < xa * g)
+				maxdist = xa * g;
+			if (maxdist < ya * g)
+				maxdist = ya * g;
+			if (maxdist < za * g)
+				maxdist = za * g;
+			maxdist *= 2;
+			trigger_throw(p->control_ent, used_hand, xd, yd, zd, maxdist);
+		}
+	}
 }
 
 void cmap_attack(cmap_params_t *p) {
@@ -1159,7 +1196,12 @@ void cmap_attack(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_attack\n");
 		return;
 	}
-	effect_limb_slot_data *td = (void*)((effect_s*)p->args[1].data)->data;
+	effect_s *used_effect = (void*)p->args[1].data;
+	if (used_effect == NULL || used_effect->type != EF_LIMB_SLOT) {
+		fprintf(stderr, "Not a limb_slot passed to cmap_attack\n");
+		return;
+	}
+	effect_limb_slot_data *td = (void*)used_effect->data;
 	entity_s *used_weapon = NULL;
 	if (td->item != NULL) {
 		effect_s *t = effect_by_type(td->item->effects, EF_LIMB_HAND);
@@ -1826,6 +1868,37 @@ void inputw_layer_enter() {
 	}
 }
 
+const char upper_cased[256] = {
+	[','] = '<',
+	['.'] = '>',
+	['a'] = 'A',
+	['b'] = 'B',
+	['c'] = 'C',
+	['d'] = 'D',
+	['e'] = 'E',
+	['f'] = 'F',
+	['g'] = 'G',
+	['h'] = 'H',
+	['i'] = 'I',
+	['j'] = 'J',
+	['k'] = 'K',
+	['l'] = 'L',
+	['m'] = 'M',
+	['n'] = 'N',
+	['o'] = 'O',
+	['p'] = 'P',
+	['q'] = 'Q',
+	['r'] = 'R',
+	['s'] = 'S',
+	['t'] = 'T',
+	['u'] = 'U',
+	['v'] = 'V',
+	['w'] = 'W',
+	['x'] = 'X',
+	['y'] = 'Y',
+	['z'] = 'Z',
+};
+
 int main(int argc, char **argv) {
 	o_init_allocator();
 	gu_things.skip_moving = 1;
@@ -1965,8 +2038,8 @@ int main(int argc, char **argv) {
 			} else if (evt.type == SDL_KEYDOWN) {
 				SDL_Keycode sym = evt.key.keysym.sym;
 				if (evt.key.keysym.mod & KMOD_SHIFT) {
-					if (sym == ',') sym = '<';
-					else if (sym == '.') sym = '>';
+					if (sym >= 0 && sym < 256 && upper_cased[sym] != '\0')
+						sym = upper_cased[sym];
 				}
 				if (inputw_n == 0 && !skip_tick) {
 					/* TODO check if it's reaction time for player */

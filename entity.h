@@ -183,8 +183,8 @@ void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 
 void trigger_move(entity_s *s, int x, int y, int z);
 // Go down like staircase
-void trigger_go_up(entity_s *s, int start_delay);
-void trigger_go_down(entity_s *s, int start_delay);
+void trigger_go_up(entity_s *s);
+void trigger_go_down(entity_s *s);
 
 void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag);
 void trigger_drop(entity_s *s, effect_s *h);
@@ -226,5 +226,6 @@ int entity_reachable_pos(entity_s *s, effect_s *limb, int x, int y, int z);
 entity_s* tracer_check_bump(entity_s *s, int x, int y, int z);
 
 int entity_weight(entity_s *s);
+int entity_size(entity_s *s);
 
 #endif
