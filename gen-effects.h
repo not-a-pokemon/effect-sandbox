@@ -58,10 +58,10 @@ typedef struct effect_aim_data {
 } effect_aim_data;
 typedef struct effect_attack_data {
 	struct entity_s *ent;
+	struct entity_s *used_limb;
 	enum attack_type type;
 	uint32_t weapon_mat;
 	int delay;
-	struct entity_s *tool;
 } effect_attack_data;
 typedef struct effect_table_item_data {
 	struct entity_s *item;

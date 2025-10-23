@@ -24,7 +24,12 @@ decl-s material
 	uint32_t prop
 	uint32_t tag :
 decl-s aim int x int y int z ent-n ent :
-decl-s attack ent-r ent 'E attack_type type uint32_t weapon_mat int delay ent-r tool :
+decl-s attack
+	ent-r ent
+	ent-r used_limb
+	'E attack_type type
+	uint32_t weapon_mat
+	int delay :
 decl-s table 'empty :
 decl-s table_item ent-r item :
 decl-s fire 'empty :

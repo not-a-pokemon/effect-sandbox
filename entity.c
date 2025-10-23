@@ -19,6 +19,10 @@ effect_s* alloc_effect(effect_type t) {
 	} else {
 		r = o_alloc_effect_i(effect_data_size[t]);
 	}
+	if (r == NULL) {
+		fprintf(stderr, "Failed to allocate effect, size %d, type %d\n", effect_data_size[t], t);
+		return NULL;
+	}
 	r->type = t;
 	return r;
 }
@@ -780,6 +784,21 @@ effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag) {
 	return NULL;
 }
 
+effect_s* entity_limb_by_entity(entity_s *s, entity_s *t) {
+	if (s == NULL)
+		return NULL;
+	effect_s *e = s->effects;
+	while (e != NULL) {
+		if (e->type == EF_LIMB_SLOT) {
+			effect_limb_slot_data *d = (void*)e->data;
+			if (d->item == t)
+				return e;
+		}
+		e = e->next;
+	}
+	return NULL;
+}
+
 effect_s* entity_material_by_tag(entity_s *s, uint32_t tag) {
 	if (s == NULL)
 		return NULL;
@@ -1035,11 +1054,58 @@ void apply_movement(entity_s *s) {
 	apply_tracer(s);
 }
 
+int attack_type_possible(entity_s *s, entity_s *used_limb, attack_type type) {
+	if (entity_limb_by_entity(s, used_limb) == NULL)
+		return 0;
+	switch (type) {
+	case ATK_HAND_PUNCH:
+		return effect_by_type(used_limb->effects, EF_LIMB_HAND) != NULL;
+	case ATK_KICK:
+		return effect_by_type(used_limb->effects, EF_LIMB_LEG) != NULL;
+	case ATK_SWING:
+	case ATK_THRUST: {
+		effect_s *e = effect_by_type(used_limb->effects, EF_LIMB_HAND);
+		if (e == NULL)
+			return 0;
+		effect_limb_hand_data *d = (void*)e->data;
+		return d->item != NULL;
+	} break;
+	default:
+		return 0;
+	}
+}
+
+entity_s* attack_used_tool(entity_s *s, entity_s *used_limb, attack_type type) {
+	if (entity_limb_by_entity(s, used_limb) == NULL)
+		return 0;
+	switch (type) {
+	case ATK_HAND_PUNCH:
+	case ATK_KICK:
+		return used_limb;
+	case ATK_SWING:
+	case ATK_THRUST: {
+		effect_s *e = effect_by_type(used_limb->effects, EF_LIMB_HAND);
+		if (e == NULL)
+			return NULL;
+		effect_limb_hand_data *d = (void*)e->data;
+		return d->item;
+	} break;
+	default:
+		return NULL;
+	}
+}
+
 void apply_attack(entity_s *s) {
 	effect_s *e = effect_by_type(s->effects, EF_ATTACK);
 	if (e == NULL) return;
 	effect_attack_data *data = (void*)e->data;
-	effect_s *mat = entity_material_by_tag(data->tool, data->weapon_mat);
+	if (!attack_type_possible(s, data->used_limb, data->type)) {
+		effect_unlink(s, e);
+		free_effect(e);
+		return;
+	}
+	entity_s *used_tool = attack_used_tool(s, data->used_limb, data->type);
+	effect_s *mat = entity_material_by_tag(used_tool, data->weapon_mat);
 	if (mat == NULL) {
 		effect_unlink(s, e);
 		free_effect(e);
@@ -1049,6 +1115,11 @@ void apply_attack(entity_s *s) {
 	/* TODO cancel attack sometimes */
 	if (data->delay > 0) {
 		data->delay--;
+		return;
+	}
+	if (!entity_reachable(s, entity_limb_by_entity(s, data->used_limb), data->ent)) {
+		effect_unlink(s, e);
+		free_effect(e);
 		return;
 	}
 	if (data->ent != NULL) {
@@ -1300,17 +1371,15 @@ void trigger_touch(entity_s *s, effect_s *h, entity_s *w) {
 	effect_prepend(s, new_eff);
 }
 
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool, uint32_t weapon_mat) {
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *used_limb, uint32_t weapon_mat) {
 	if (effect_by_type(s->effects, EF_ATTACK) != NULL)
-		return;
-	if (tool == NULL)
 		return;
 	effect_s *new_eff = alloc_effect(EF_ATTACK);
 	effect_attack_data *d = (void*)new_eff->data;
 	d->ent = e;
 	d->delay = 1;
 	d->type = type;
-	d->tool = tool;
+	d->used_limb = used_limb;
 	d->weapon_mat = weapon_mat;
 	effect_prepend(s, new_eff);
 }

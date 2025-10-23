@@ -146,7 +146,11 @@ void effect_prepend(entity_s *s, effect_s *e);
 void liquid_deduplicate(entity_s *s);
 
 effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag);
+effect_s* entity_limb_by_entity(entity_s *s, entity_s *t);
 effect_s* entity_material_by_tag(entity_s *s, uint32_t tag);
+
+int attack_type_possible(entity_s *s, entity_s *used_limb, attack_type type);
+entity_s* attack_used_tool(entity_s *s, entity_s *used_limb, attack_type type);
 
 void apply_block_move(entity_s *s);
 void apply_stair_move(entity_s *s);
@@ -192,7 +196,7 @@ void trigger_put(entity_s *s, effect_s *h, entity_s *w);
 void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
 void trigger_touch(entity_s *s, effect_s *h, entity_s *w);
 void trigger_punch(entity_s *s, entity_s *e);
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *tool, uint32_t weapon_mat);
+void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *used_limb, uint32_t weapon_mat);
 void trigger_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 
 void dump_effect(effect_s *e, FILE *stream);

@@ -1202,14 +1202,6 @@ void cmap_attack(cmap_params_t *p) {
 		return;
 	}
 	effect_limb_slot_data *td = (void*)used_effect->data;
-	entity_s *used_weapon = NULL;
-	if (td->item != NULL) {
-		effect_s *t = effect_by_type(td->item->effects, EF_LIMB_HAND);
-		if (t != NULL) {
-			effect_limb_hand_data *d = (void*)t->data;
-			used_weapon = d->item;
-		}
-	}
 	int mat_tag = 0;
 	effect_s *ef_mat = p->args[2].data;
 	if (ef_mat->type == EF_MATERIAL) {
@@ -1220,7 +1212,7 @@ void cmap_attack(cmap_params_t *p) {
 		p->control_ent,
 		p->args[0].data,
 		ATK_SWING,
-		used_weapon,
+		td->item,
 		mat_tag
 	);
 }
@@ -1400,7 +1392,7 @@ int command_parse_message(const char *s, char *buf, int buf_n) {
 int command_arg_e(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
 	int nr = 0;
-	nr = command_parse_message(s, msg_buf, 32);
+	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
 	printf("arg e message (%s)\n", msg_buf);
 	input_queue_entity_select(control_ent, msg_buf);
 	return nr;
@@ -1409,7 +1401,7 @@ int command_arg_e(entity_s *control_ent, const char *s) {
 int command_arg_h(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
 	int nr = 0;
-	nr = command_parse_message(s, msg_buf, 32);
+	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
 	printf("arg h message (%s)\n", msg_buf);
 	input_queue_limb_select(control_ent, msg_buf);
 	return nr;
@@ -1419,7 +1411,7 @@ int command_arg_h_big(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
 	int nr;
 	(void)control_ent;
-	nr = command_parse_message(s, msg_buf, 32);
+	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
 	printf("arg H message (%s)\n", msg_buf);
 	input_queue_limb_default(control_ent);
 	return nr;
@@ -1429,8 +1421,7 @@ int command_arg_g(entity_s *control_ent, const char *s) {
 	char msg_buf[INPUTW_DATA_SIZE];
 	int nr;
 	(void)control_ent;
-	(void)s;
-	nr = command_parse_message(s, msg_buf, 32);
+	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
 	printf("arg g message (%s)\n", msg_buf);
 	input_queue_effect(control_ent, INP_EF_MATERIAL);
 	return nr;

@@ -171,24 +171,24 @@ void effect_scan_attack(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) 
 	(void)n_ent; (void)a_ent;
 	effect_attack_data *d = (void*)e->data;
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->used_limb = NULL; else d->used_limb = a_ent[t]; }
 	fread(&d->type, sizeof(int), 1, stream);
 	fread(&d->weapon_mat, sizeof(uint32_t), 1, stream);
 	fread(&d->delay, sizeof(int), 1, stream);
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->tool = NULL; else d->tool = a_ent[t]; }
 }
 void effect_dump_attack(effect_s *e, FILE *stream) {
 	effect_attack_data *d = (void*)e->data;
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
+	{ int t; if (d->used_limb == NULL){t = -1;}else{t = entity_get_index(d->used_limb);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->type, sizeof(int), 1, stream);
 	fwrite(&d->weapon_mat, sizeof(uint32_t), 1, stream);
 	fwrite(&d->delay, sizeof(int), 1, stream);
-	{ int t; if (d->tool == NULL){t = -1;}else{t = entity_get_index(d->tool);} fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_attack(entity_s *s, effect_s *e) {
 	(void)s; (void)e;
 	effect_attack_data *d = (void*)e->data;
 	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
-	if (d->tool == NULL || effect_by_type(d->tool->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	if (d->used_limb == NULL || effect_by_type(d->used_limb->effects, EF_B_NONEXISTENT) != NULL) return 1;
 	return 0;
 }
 void effect_scan_table_item(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
