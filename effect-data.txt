@@ -70,10 +70,16 @@ decl-s ph_liquid
 	'E liquid_type type :
 #/ container mask holds info about whether it can handle different types of objects (liquids, solids, grains)
 decl-s container
-	'T unsigned cont_mask
+	uint32_t cont_mask
+	int min_size #/ minimal size for an object to fit into
 	int capacity :
 decl-s container_item
 	ent-r item :
 decl-s wet
 	'E liquid_type type
 	int amount :
+decl-s m_fill_cont
+	int hand_tag
+	ent-r target :
+decl-s m_empty_cont
+	int hand_tag :

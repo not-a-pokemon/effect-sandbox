@@ -546,59 +546,42 @@ void setup_field(void) {
 			d->dex = 64;
 			effect_prepend(new_ent, ef_stats);
 		}
-		{
+		for (int i = 0; i < 2; i++) {
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
-			d->tag = 0;
+			d->tag = i;
 			{
-				entity_s *e_hand = o_alloc_entity();
-				e_hand->effects = NULL;
-				entity_prepend(g_entities, e_hand);
-				g_entities = e_hand;
+				entity_s *e_leg = o_alloc_entity();
+				e_leg->effects = NULL;
+				entity_prepend(g_entities, e_leg);
+				g_entities = e_leg;
 
 				effect_s *ef_hand = alloc_effect(EF_LIMB_LEG);
-				effect_prepend(e_hand, ef_hand);
+				effect_prepend(e_leg, ef_hand);
+
+				effect_s *ef_mat = alloc_effect(EF_MATERIAL);
+				effect_material_data *mat_d = (void*)ef_mat->data;
+				mat_d->type = MAT_GHOST;
+				mat_d->dur = 10;
+				mat_d->prop = 0;
+				mat_d->tag = 0;
+				effect_prepend(e_leg, ef_mat);
 
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
 				dt->parent = new_ent;
 				dt->parent_type = PARENT_REF_LIMB;
-				effect_prepend(e_hand, ef_item);
+				effect_prepend(e_leg, ef_item);
 
-				d->item = e_hand;
+				d->item = e_leg;
 			}
 			effect_prepend(new_ent, ef_limb_slot);
 		}
-		{
+		for (int i = 0; i < 2; i++) {
 			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
 			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
-			d->tag = 1;
-			{
-				entity_s *e_hand = o_alloc_entity();
-				e_hand->effects = NULL;
-				entity_prepend(g_entities, e_hand);
-				g_entities = e_hand;
-
-				effect_s *ef_hand = alloc_effect(EF_LIMB_HAND);
-				effect_limb_hand_data *hand_d = (void*)ef_hand->data;
-				hand_d->item = NULL;
-				effect_prepend(e_hand, ef_hand);
-
-				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
-				effect_ph_item_data *dt = (void*)ef_item->data;
-				dt->weight = 1;
-				dt->parent = new_ent;
-				dt->parent_type = PARENT_REF_LIMB;
-				effect_prepend(e_hand, ef_item);
-
-				d->item = e_hand;
-			}
-			effect_prepend(new_ent, ef_limb_slot);
-		}
-		{
-			effect_s *ef_limb_slot = alloc_effect(EF_LIMB_SLOT);
-			effect_limb_slot_data *d = (void*)ef_limb_slot->data;
+			d->tag = i + 2;
 			{
 				entity_s *e_hand = o_alloc_entity();
 				e_hand->effects = NULL;
@@ -701,6 +684,14 @@ void setup_field(void) {
 			d->g = 120;
 			d->a = 100;
 			d->chr = '1';
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)new_eff->data;
+			d->type = MAT_STONE;
+			d->tag = 0;
+			d->prop = 0;
 			effect_prepend(new_ent, new_eff);
 		}
 		entity_prepend(g_entities, new_ent);
@@ -874,9 +865,19 @@ void setup_field(void) {
 			effect_prepend(new_ent, rend);
 		}
 		{
+			effect_s *mat = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)mat->data;
+			d->type = MAT_WOOD;
+			d->prop = 0;
+			d->tag = 0;
+			d->dur = 10;
+			effect_prepend(new_ent, mat);
+		}
+		{
 			effect_s *cont = alloc_effect(EF_CONTAINER);
 			effect_container_data *d = (void*)cont->data;
 			d->capacity = 10;
+			d->min_size = 10;
 			d->cont_mask = 0;
 			effect_prepend(new_ent, cont);
 		}
@@ -964,6 +965,7 @@ typedef enum cmap_arg_t_type {
 	CMAP_ARG_ENTITY,
 	CMAP_ARG_TILE,
 	CMAP_ARG_EFFECT,
+	CMAP_ARG_ATTACK,
 	CMAP_ARG_NONE,
 } cmap_arg_t_type;
 
@@ -1010,6 +1012,28 @@ void params_push_effect(effect_s *s) {
 	gu_params.args[gu_params.nargs].type = CMAP_ARG_EFFECT;
 	gu_params.args[gu_params.nargs].data = s;
 	gu_params.nargs++;
+}
+
+void params_push_attack(attack_l_s *s) {
+	if (gu_params.nargs == INPUT_ARG_MAX) {
+		fprintf(stderr, "[WARN] Exceeded INPUT_ARG_MAX\n");
+		return;
+	}
+	gu_params.args[gu_params.nargs].type = CMAP_ARG_ATTACK;
+	gu_params.args[gu_params.nargs].data = s;
+	gu_params.nargs++;
+}
+
+void cmap_params_cleanup(void) {
+	int i;
+	for (i = 0; i < gu_params.nargs; i++) {
+		if (gu_params.args[i].type == CMAP_ARG_ATTACK) {
+			o_free(gu_params.args[i].data);
+			gu_params.args[i].data = NULL;
+		}
+		gu_params.args[i].type = -1;
+	}
+	gu_params.nargs = 0;
 }
 
 typedef struct gu_things_t {
@@ -1188,33 +1212,47 @@ void cmap_throw(cmap_params_t *p) {
 }
 
 void cmap_attack(cmap_params_t *p) {
-	if (p->nargs != 3) {
+	if (p->nargs != 2) {
 		fprintf(stderr, "Wrong number of arguments to cmap_attack\n");
 		return;
 	}
-	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_EFFECT || p->args[2].type != CMAP_ARG_EFFECT) {
+	if (p->args[0].type != CMAP_ARG_ENTITY || p->args[1].type != CMAP_ARG_ATTACK) {
 		fprintf(stderr, "Wrong arguments to cmap_attack\n");
 		return;
 	}
-	effect_s *used_effect = (void*)p->args[1].data;
-	if (used_effect == NULL || used_effect->type != EF_LIMB_SLOT) {
-		fprintf(stderr, "Not a limb_slot passed to cmap_attack\n");
-		return;
-	}
-	effect_limb_slot_data *td = (void*)used_effect->data;
-	int mat_tag = 0;
-	effect_s *ef_mat = p->args[2].data;
-	if (ef_mat->type == EF_MATERIAL) {
-		effect_material_data *d = (void*)ef_mat->data;
-		mat_tag = d->tag;
-	}
+	attack_l_s *a = p->args[1].data;
+	uint32_t mat_tag = a->tool_mat_tag;
 	trigger_attack(
 		p->control_ent,
 		p->args[0].data,
-		ATK_SWING,
-		td->item,
+		a->type,
+		a->limb_entity,
 		mat_tag
 	);
+}
+
+void cmap_fill_container(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_fill_container\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_fill_container\n");
+		return;
+	}
+	trigger_fill_cont(p->control_ent, p->args[0].data, p->args[1].data);
+}
+
+void cmap_empty_container(cmap_params_t *p) {
+	if (p->nargs != 1) {
+		fprintf(stderr, "Wrong number of arguments to cmap_empty_container\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT) {
+		fprintf(stderr, "Wrong arguments to cmap_empty_container\n");
+		return;
+	}
+	trigger_empty_cont(p->control_ent, p->args[0].data);
 }
 
 const cmap_t command_maps[] = {
@@ -1235,7 +1273,9 @@ const cmap_t command_maps[] = {
 	(cmap_t){'g', "He(Grab what?)g(By what?)", cmap_grab},
 	(cmap_t){'o', "He(Open door?)", cmap_open_door},
 	(cmap_t){'t', "He(Into what?)", cmap_throw},
-	(cmap_t){'a', "e(Attack what?)Hg", cmap_attack},
+	(cmap_t){'a', "e(Attack what?)a", cmap_attack},
+	(cmap_t){'f', "H(Fill which container?)e(Where to fill from?)", cmap_fill_container},
+	(cmap_t){'e', "H(Which container to empty?)", cmap_empty_container},
 };
 const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
 
@@ -1247,6 +1287,7 @@ typedef enum inputw_type {
 	INPUTW_LIMB,
 	INPUTW_LIMB_DEFAULT,
 	INPUTW_EFFECT,
+	INPUTW_ATTACK,
 } inputw_type;
 
 typedef struct inputw_tile_s {
@@ -1279,16 +1320,21 @@ typedef struct inputw_effect_s {
 	inputw_effect_sel_type type;
 } inputw_effect_s;
 
-#define INPUTW_DATA_SIZE 24
+typedef struct inputw_attack_s {
+	attack_l_s *attacks;
+	attack_l_s *cur_sel;
+} inputw_attack_s;
+
+#define INPUTW_MSG_LEN 24
 typedef struct inputw_t {
 	inputw_type type;
-	char data[INPUTW_DATA_SIZE];
-	void *data1;
+	char msg[INPUTW_MSG_LEN];
 	union {
 		inputw_tile_s u_tile;
 		inputw_entity_s u_entity;
 		inputw_limb_s u_limb;
 		inputw_effect_s u_effect;
+		inputw_attack_s u_attack;
 	} data_u;
 } inputw_t;
 
@@ -1301,6 +1347,7 @@ inputw_t inputws[INPUTW_MAXNR];
 int inputw_n = 0;
 inputw_t inputw_queue[INPUTW_MAXNR];
 int inputw_queue_n = 0;
+char inputw_message[INPUTW_MSG_LEN];
 
 void input_queue_flush(void) {
 	int exc = 0;
@@ -1318,59 +1365,68 @@ void input_queue_flush(void) {
 	}
 }
 
-void input_queue_entity_select(entity_s *control_ent, const char *msg) {
+void input_queue_entity_select(void) {
 	if (inputw_queue_n == INPUTW_MAXNR) {
 		fprintf(stderr, "Exceeded number of input layers\n");
 		return;
 	}
 	inputw_queue[inputw_queue_n].type = INPUTW_ENTITY;
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	int x = 0, y = 0, z = 0;
-	if (entity_coords(control_ent, &x, &y, &z)) {
+	if (entity_coords(gu_params.control_ent, &x, &y, &z)) {
 		inputw_entity_s *e = &inputw_queue[inputw_queue_n].data_u.u_entity;
 		e->x = x;
 		e->y = y;
 		e->z = z;
 		e->cur_sel = NULL;
 	}
-	strncpy(inputw_queue[inputw_queue_n].data, msg, INPUTW_DATA_SIZE);
 	inputw_queue_n++;
 }
 
-void input_queue_limb_select(entity_s *control_ent, const char *msg) {
-	(void)control_ent;
+void input_queue_limb_select(void) {
 	if (inputw_queue_n == INPUTW_MAXNR) {
 		fprintf(stderr, "Exceeded number of input layers\n");
 		return;
 	}
 	inputw_queue[inputw_queue_n].type = INPUTW_LIMB;
-	strncpy(inputw_queue[inputw_queue_n].data, msg, INPUTW_DATA_SIZE);
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	inputw_queue_n++;
 }
 
-void input_queue_limb_default(entity_s *control_ent) {
-	(void)control_ent;
+void input_queue_limb_default(void) {
 	if (inputw_queue_n == INPUTW_MAXNR) {
 		fprintf(stderr, "Exceeded number of input layers\n");
 		return;
 	}
 	inputw_queue[inputw_queue_n].type = INPUTW_LIMB_DEFAULT;
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	inputw_queue_n++;
 }
 
-void input_queue_effect(entity_s *control_ent, inputw_effect_sel_type type) {
-	(void)control_ent;
+void input_queue_effect(inputw_effect_sel_type type) {
 	if (inputw_queue_n == INPUTW_MAXNR) {
 		fprintf(stderr, "Exceeded number of input layers\n");
 		return;
 	}
 	inputw_queue[inputw_queue_n].type = INPUTW_EFFECT;
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	inputw_queue[inputw_queue_n].data_u.u_effect.type = type;
+	inputw_queue_n++;
+}
+
+void input_queue_attack(void) {
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_ATTACK;
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	inputw_queue_n++;
 }
 
 void inputw_clear(void) {
 	inputw_n = 0;
-	/* TODO inputw clear already stored args */
+	cmap_params_cleanup();
 }
 
 int command_parse_message(const char *s, char *buf, int buf_n) {
@@ -1389,41 +1445,38 @@ int command_parse_message(const char *s, char *buf, int buf_n) {
 	return nr;
 }
 
-int command_arg_e(entity_s *control_ent, const char *s) {
-	char msg_buf[INPUTW_DATA_SIZE];
-	int nr = 0;
-	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
-	printf("arg e message (%s)\n", msg_buf);
-	input_queue_entity_select(control_ent, msg_buf);
-	return nr;
-}
-
-int command_arg_h(entity_s *control_ent, const char *s) {
-	char msg_buf[INPUTW_DATA_SIZE];
-	int nr = 0;
-	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
-	printf("arg h message (%s)\n", msg_buf);
-	input_queue_limb_select(control_ent, msg_buf);
-	return nr;
-}
-
-int command_arg_h_big(entity_s *control_ent, const char *s) {
-	char msg_buf[INPUTW_DATA_SIZE];
+int command_arg_e(const char *s) {
 	int nr;
-	(void)control_ent;
-	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
-	printf("arg H message (%s)\n", msg_buf);
-	input_queue_limb_default(control_ent);
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_entity_select();
 	return nr;
 }
 
-int command_arg_g(entity_s *control_ent, const char *s) {
-	char msg_buf[INPUTW_DATA_SIZE];
+int command_arg_h(const char *s) {
 	int nr;
-	(void)control_ent;
-	nr = command_parse_message(s, msg_buf, INPUTW_DATA_SIZE);
-	printf("arg g message (%s)\n", msg_buf);
-	input_queue_effect(control_ent, INP_EF_MATERIAL);
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_limb_select();
+	return nr;
+}
+
+int command_arg_h_big(const char *s) {
+	int nr;
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_limb_default();
+	return nr;
+}
+
+int command_arg_g(const char *s) {
+	int nr;
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_effect(INP_EF_MATERIAL);
+	return nr;
+}
+
+int command_arg_a(const char *s) {
+	int nr;
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_attack();
 	return nr;
 }
 
@@ -1445,16 +1498,19 @@ void command_map_exec(entity_s *control_ent, int n) {
 	while (s[t] != '\0') {
 		switch (s[t]) {
 		case 'e': {
-			t += 1 + command_arg_e(control_ent, s+t+1);
+			t += 1 + command_arg_e(s+t+1);
 		} break;
 		case 'h': {
-			t += 1 + command_arg_h(control_ent, s+t+1);
+			t += 1 + command_arg_h(s+t+1);
 		} break;
 		case 'H': {
-			t += 1 + command_arg_h_big(control_ent, s+t+1);
+			t += 1 + command_arg_h_big(s+t+1);
 		} break;
 		case 'g': {
-			t += 1 + command_arg_g(control_ent, s+t+1);
+			t += 1 + command_arg_g(s+t+1);
+		} break;
+		case 'a': {
+			t += 1 + command_arg_a(s+t+1);
 		} break;
 		default: {
 			fprintf(stderr, "Unrecognised command char '%c'\n", s[t]);
@@ -1630,8 +1686,50 @@ int inputw_effect_key(SDL_Keycode sym) {
 	return 0;
 }
 
-void render_layer_adjust(camera_view_s *cam, entity_s *control_ent) {
-	(void)control_ent;
+int inputw_attack_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_attack_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_ATTACK) {
+		fprintf(stderr, "Input layer isn't attack\n");
+		return 0;
+	}
+	inputw_attack_s *e = &inputws[inputw_n - 1].data_u.u_attack;
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_UP) {
+		if (e->cur_sel != NULL && e->cur_sel->prev != NULL)
+			e->cur_sel = e->cur_sel->prev;
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_DOWN) {
+		if (e->cur_sel != NULL && e->cur_sel->next != NULL)
+			e->cur_sel = e->cur_sel->next;
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_RETURN) {
+		if (e->cur_sel != NULL) {
+			params_push_attack(e->cur_sel);
+			attack_l_s *t = e->attacks;
+			while (t != NULL) {
+				attack_l_s *nxt = t->next;
+				if (t != e->cur_sel) {
+					o_free(t);
+				}
+				t = nxt;
+			}
+			e->cur_sel->prev = NULL;
+			e->cur_sel->next = NULL;
+			return INP_M_NEXT;
+		}
+	}
+	return 0;
+}
+
+void render_layer_adjust(camera_view_s *cam) {
 	cam->cursor_x = -1;
 	cam->cursor_y = -1;
 	switch (inputw_n == 0 ? INPUTW_ORIGIN : inputws[inputw_n - 1].type) {
@@ -1657,14 +1755,16 @@ void render_list_layers(SDL_Renderer *rend, int x, int y) {
 	char buf[32];
 	for (i = 0; i < inputw_n; i++) {
 		snprintf(
-			buf, 32, "%s",
+			buf, 32, "%s %s",
 			inputws[i].type == INPUTW_ORIGIN ? "origin" :
 			inputws[i].type == INPUTW_TILE ? "tile" :
 			inputws[i].type == INPUTW_ENTITY ? "entity" :
 			inputws[i].type == INPUTW_LIMB ? "limb" :
 			inputws[i].type == INPUTW_LIMB_DEFAULT ? "limb_default" :
 			inputws[i].type == INPUTW_EFFECT ? "effect" :
-			"*"
+			inputws[i].type == INPUTW_ATTACK ? "attack" :
+			"*",
+			inputws[i].msg
 		);
 		{
 			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
@@ -1802,12 +1902,46 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 			e = e->next;
 		}
 	} break;
+	case INPUTW_ATTACK: {
+		attack_l_s *l = inputws[inputw_n - 1].data_u.u_attack.attacks;
+		attack_l_s *cur = inputws[inputw_n - 1].data_u.u_attack.cur_sel;
+		int yc = y;
+		while (l != NULL) {
+			effect_s *tool_mat = entity_material_by_tag(l->tool, l->tool_mat_tag);
+			effect_material_data *tool_mat_d = (void*)tool_mat->data;
+			snprintf(
+				buf, 32, "%s %d %d %s:%s",
+				attack_type_string[l->type],
+				l->limb_slot_tag,
+				l->tool_mat_tag,
+				tool_mat_d->prop & MATP_SHARP ? "sharp" : "",
+				tool_mat_d->prop & MATP_SMALL ? "small" : ""
+			);
+			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+			if (l != cur) {
+				colo.g /= 2;
+				colo.b /= 2;
+			}
+			SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+			SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+			SDL_Rect target;
+			target.x = x;
+			target.y = yc;
+			target.w = surf->w;
+			target.h = surf->h;
+			yc += target.h;
+			SDL_RenderCopy(rend, tex, NULL, &target);
+			SDL_DestroyTexture(tex);
+			SDL_FreeSurface(surf);
+			l = l->next;
+		}
+	} break;
 	default: {
 	}
 	}
 }
 
-void inputw_layer_enter() {
+void inputw_layer_enter(void) {
 	if (inputw_n == 0)
 		return;
 	switch (inputws[inputw_n - 1].type) {
@@ -1853,6 +1987,15 @@ void inputw_layer_enter() {
 			}
 		}
 		e->cur_sel = e->ent == NULL ? NULL : effect_by_type(e->ent->effects, EF_MATERIAL);
+	} break;
+	case INPUTW_ATTACK: {
+		inputw_attack_s *e = &inputws[inputw_n - 1].data_u.u_attack;
+		entity_s *target = NULL;
+		if (gu_params.nargs != 0 && gu_params.args[gu_params.nargs - 1].type == CMAP_ARG_ENTITY) {
+			target = gu_params.args[gu_params.nargs - 1].data;
+		}
+		e->attacks = entity_list_attacks(gu_params.control_ent, target);
+		e->cur_sel = e->attacks;
 	} break;
 	default: {
 	}
@@ -1902,7 +2045,7 @@ int main(int argc, char **argv) {
 	SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
 	int running = 1;
 	camera_view_s cam = {.x = 0, .y = 0, .z = 0, .width = 16, .height = 16, .blink = 0};
-	gr_font = TTF_OpenFont("/usr/share/fonts/TTF/IosevkaNerdFont-Regular.ttf", 24);
+	gr_font = TTF_OpenFont("/usr/share/fonts/TTF/Iosevka-Regular.ttc", 24);
 
 	/* Monospace fonts only */
 	TTF_SizeText(gr_font, "a", &gr_rend_char_width, &gr_rend_char_height);
@@ -1997,7 +2140,7 @@ int main(int argc, char **argv) {
 			}
 			SDL_SetRenderDrawColor(rend, 0, 0, 0, 0);
 			SDL_RenderClear(rend);
-			render_layer_adjust(&cam, control_ent);
+			render_layer_adjust(&cam);
 			render_camera(rend, &cam);
 			render_status(rend, control_ent, 0, cam.height * gr_rend_char_height);
 			render_list_layers(rend, cam.width * gr_rend_char_width, 0);
@@ -2067,6 +2210,9 @@ int main(int argc, char **argv) {
 					case INPUTW_EFFECT: {
 						mask = inputw_effect_key(sym);
 					} break;
+					case INPUTW_ATTACK: {
+						mask = inputw_attack_key(sym);
+					} break;
 					default: {
 					}
 					}
@@ -2078,6 +2224,7 @@ int main(int argc, char **argv) {
 						inputw_layer_enter();
 						if (inputw_n == 0) {
 							command_maps[gu_params.c_id].callback(&gu_params);
+							cmap_params_cleanup();
 							if (!gu_things.no_trigger)
 								trigger_done = 1;
 							else
@@ -2107,6 +2254,21 @@ int main(int argc, char **argv) {
 		} else {
 			perror("Failed to open save file: ");
 		}
+	}
+	{
+		sector_s *t = g_sectors;
+		while (t != NULL) {
+			unload_sector(t);
+			t = t->snext;
+		}
+		g_entities = clear_nonexistent(g_entities);
+		t = g_sectors;
+		while (t != NULL) {
+			sector_s *nxt = t->snext;
+			o_free(t);
+			t = nxt;
+		}
+		g_sectors = NULL;
 	}
 	o_free(g_dice);
 	TTF_CloseFont(gr_font);

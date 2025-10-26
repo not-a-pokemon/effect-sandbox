@@ -121,7 +121,8 @@ typedef struct effect_ph_liquid_data {
 	enum liquid_type type;
 } effect_ph_liquid_data;
 typedef struct effect_container_data {
-	unsigned cont_mask;
+	uint32_t cont_mask;
+	int min_size;
 	int capacity;
 } effect_container_data;
 typedef struct effect_container_item_data {
@@ -131,6 +132,13 @@ typedef struct effect_wet_data {
 	enum liquid_type type;
 	int amount;
 } effect_wet_data;
+typedef struct effect_m_fill_cont_data {
+	int hand_tag;
+	struct entity_s *target;
+} effect_m_fill_cont_data;
+typedef struct effect_m_empty_cont_data {
+	int hand_tag;
+} effect_m_empty_cont_data;
 typedef enum effect_type {
 	EF_B_NONEXISTENT,
 	EF_B_INDEX,
@@ -171,5 +179,7 @@ typedef enum effect_type {
 	EF_CONTAINER,
 	EF_CONTAINER_ITEM,
 	EF_WET,
+	EF_M_FILL_CONT,
+	EF_M_EMPTY_CONT,
 	EF_UNKNOWN = -1
 } effect_type;

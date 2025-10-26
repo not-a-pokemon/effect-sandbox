@@ -383,12 +383,14 @@ void effect_dump_ph_liquid(effect_s *e, FILE *stream) {
 void effect_scan_container(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_container_data *d = (void*)e->data;
-	fread(&d->cont_mask, sizeof(unsigned), 1, stream);
+	fread(&d->cont_mask, sizeof(uint32_t), 1, stream);
+	fread(&d->min_size, sizeof(int), 1, stream);
 	fread(&d->capacity, sizeof(int), 1, stream);
 }
 void effect_dump_container(effect_s *e, FILE *stream) {
 	effect_container_data *d = (void*)e->data;
-	fwrite(&d->cont_mask, sizeof(unsigned), 1, stream);
+	fwrite(&d->cont_mask, sizeof(uint32_t), 1, stream);
+	fwrite(&d->min_size, sizeof(int), 1, stream);
 	fwrite(&d->capacity, sizeof(int), 1, stream);
 }
 void effect_scan_container_item(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
@@ -416,6 +418,32 @@ void effect_dump_wet(effect_s *e, FILE *stream) {
 	effect_wet_data *d = (void*)e->data;
 	fwrite(&d->type, sizeof(int), 1, stream);
 	fwrite(&d->amount, sizeof(int), 1, stream);
+}
+void effect_scan_m_fill_cont(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_m_fill_cont_data *d = (void*)e->data;
+	fread(&d->hand_tag, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->target = NULL; else d->target = a_ent[t]; }
+}
+void effect_dump_m_fill_cont(effect_s *e, FILE *stream) {
+	effect_m_fill_cont_data *d = (void*)e->data;
+	fwrite(&d->hand_tag, sizeof(int), 1, stream);
+	{ int t; if (d->target == NULL){t = -1;}else{t = entity_get_index(d->target);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_m_fill_cont(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_fill_cont_data *d = (void*)e->data;
+	if (d->target == NULL || effect_by_type(d->target->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
+void effect_scan_m_empty_cont(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_m_empty_cont_data *d = (void*)e->data;
+	fread(&d->hand_tag, sizeof(int), 1, stream);
+}
+void effect_dump_m_empty_cont(effect_s *e, FILE *stream) {
+	effect_m_empty_cont_data *d = (void*)e->data;
+	fwrite(&d->hand_tag, sizeof(int), 1, stream);
 }
 
 int effect_data_size[] = {
@@ -458,6 +486,8 @@ int effect_data_size[] = {
 	[EF_CONTAINER] = sizeof(effect_container_data),
 	[EF_CONTAINER_ITEM] = sizeof(effect_container_item_data),
 	[EF_WET] = sizeof(effect_wet_data),
+	[EF_M_FILL_CONT] = sizeof(effect_m_fill_cont_data),
+	[EF_M_EMPTY_CONT] = sizeof(effect_m_empty_cont_data),
 };
 
 effect_dump_t effect_dump_functions[] = {
@@ -500,6 +530,8 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_CONTAINER] = effect_dump_container,
 	[EF_CONTAINER_ITEM] = effect_dump_container_item,
 	[EF_WET] = effect_dump_wet,
+	[EF_M_FILL_CONT] = effect_dump_m_fill_cont,
+	[EF_M_EMPTY_CONT] = effect_dump_m_empty_cont,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -542,6 +574,8 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_CONTAINER] = effect_scan_container,
 	[EF_CONTAINER_ITEM] = effect_scan_container_item,
 	[EF_WET] = effect_scan_wet,
+	[EF_M_FILL_CONT] = effect_scan_m_fill_cont,
+	[EF_M_EMPTY_CONT] = effect_scan_m_empty_cont,
 };
 
 effect_rem_t effect_rem_functions[] = {
@@ -584,4 +618,6 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_CONTAINER] = NULL,
 	[EF_CONTAINER_ITEM] = effect_rem_container_item,
 	[EF_WET] = NULL,
+	[EF_M_FILL_CONT] = effect_rem_m_fill_cont,
+	[EF_M_EMPTY_CONT] = NULL,
 };
