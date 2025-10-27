@@ -1635,6 +1635,7 @@ void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t) {
 	if (liq_d->amount == 0)
 		return;
 	liq_d->amount--;
+	liquid_deduplicate(t);
 	container_add_liquid(lhd->item, liq_d->type, 1);
 }
 
@@ -2339,6 +2340,8 @@ void container_add_liquid(entity_s *s, liquid_type t, int amount) {
 		d->parent_type = PARENT_REF_CONT;
 		effect_prepend(new_item, ef_ph);
 	}
+	entity_prepend(g_entities, new_item);
+	g_entities = new_item;
 	effect_s *new_eff = alloc_effect(EF_CONTAINER_ITEM);
 	effect_container_item_data *d = (void*)new_eff->data;
 	d->item = new_item;
