@@ -102,16 +102,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 			}
 			if (s != NULL) {
 				entity_l_s *t = sector_get_block_entities(s, x, y, z);
-				int cnt = 0;
-				{
-					entity_l_s *c = t;
-					while (c != NULL) {
-						cnt++;
-						c = c->next;
-					}
-				}
-				int target = cam->blink % (cnt != 0 ? cnt : 1);
-				while (t != NULL) {
+				for (; t != NULL; t = t->next) {
 					entity_s *te = t->ent;
 					char c_chr;
 					int c_r, c_g, c_b, c_a;
@@ -131,7 +122,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 						char rr[2] = {'!', '\0'};
 						SDL_Color fire_color = {.r = 255, .g = 0, .b = 0, .a = 192};
 						if (cam->blink % 2) {
-							rr[0] = ')';
+							rr[0] = ' ';
 						}
 						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, fire_color);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
@@ -139,8 +130,6 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 						SDL_DestroyTexture(tex);
 						SDL_FreeSurface(surf);
 					}
-					t = t->next;
-					target--;
 				}
 			}
 			if (i == cam->cursor_x && j == cam->cursor_y) {
@@ -371,8 +360,16 @@ void spawn_simple_door(int x, int y, int z) {
 		d->chr = '%';
 		effect_prepend(new_ent, ef_rend);
 	}
+#if 0
 	{
 		effect_s *ef_door = alloc_effect(EF_R_TOUCH_TOGGLE_BLOCK);
+		effect_prepend(new_ent, ef_door);
+	}
+#endif
+	{
+		effect_s *ef_door = alloc_effect(EF_DOOR);
+		effect_door_data *d = (void*)ef_door->data;
+		d->opened = 0;
 		effect_prepend(new_ent, ef_door);
 	}
 	{
@@ -638,10 +635,12 @@ void setup_field(void) {
 			d->tag = 0;
 			effect_prepend(new_ent, ef_mat);
 		}
+#if 0
 		{
 			effect_s *ef_tp = alloc_effect(EF_R_TOUCH_RNG_TP);
 			effect_prepend(new_ent, ef_tp);
 		}
+#endif
 		{
 			effect_s *ef_rend = alloc_effect(EF_RENDER);
 			effect_render_data *d = (void*)ef_rend->data;
@@ -651,6 +650,12 @@ void setup_field(void) {
 			d->a = 128;
 			d->chr = '\'';
 			effect_prepend(new_ent, ef_rend);
+		}
+		{
+			effect_s *ef_r = alloc_effect(EF_R_BOTTLE_DISPENSER);
+			effect_r_bottle_dispenser_data *d = (void*)ef_r->data;
+			d->mat_tag = 0;
+			effect_prepend(new_ent, ef_r);
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
@@ -760,10 +765,12 @@ void setup_field(void) {
 			d->chr = '-';
 			effect_prepend(new_ent, new_eff);
 		}
+#if 0
 		{
 			effect_s *new_eff = alloc_effect(EF_R_TOUCH_SHOOT_PROJECTILE);
 			effect_prepend(new_ent, new_eff);
 		}
+#endif
 		{
 			effect_s *new_eff = alloc_effect(EF_AIM);
 			effect_aim_data *d = (void*)new_eff->data;
@@ -867,7 +874,7 @@ void setup_field(void) {
 		{
 			effect_s *mat = alloc_effect(EF_MATERIAL);
 			effect_material_data *d = (void*)mat->data;
-			d->type = MAT_WOOD;
+			d->type = MAT_GLASS;
 			d->prop = 0;
 			d->tag = 0;
 			d->dur = 10;
@@ -1159,7 +1166,19 @@ void cmap_open_door(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_open_door\n");
 		return;
 	}
-	trigger_touch(p->control_ent, p->args[0].data, p->args[1].data);
+	trigger_open_door(p->control_ent, p->args[0].data, p->args[1].data, 64);
+}
+
+void cmap_close_door(cmap_params_t *p) {
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_open_door, found %d\n", p->nargs);
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_open_door\n");
+		return;
+	}
+	trigger_open_door(p->control_ent, p->args[0].data, p->args[1].data, -64);
 }
 
 void cmap_throw(cmap_params_t *p) {
@@ -1255,27 +1274,41 @@ void cmap_empty_container(cmap_params_t *p) {
 	trigger_empty_cont(p->control_ent, p->args[0].data);
 }
 
+void cmap_press_button(cmap_params_t *p) {
+	if (p->nargs != 3) {
+		fprintf(stderr, "Wrong number of arguments to cmap_press_button\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY || p->args[2].type != CMAP_ARG_EFFECT) {
+		fprintf(stderr, "Wrong arguments to cmap_press_button\n");
+		return;
+	}
+	trigger_press_button(p->control_ent, p->args[0].data, p->args[1].data, p->args[2].data);
+}
+
 const cmap_t command_maps[] = {
-	(cmap_t){'/', NULL, cmap_toggle_skip_moving},
-	(cmap_t){'w', NULL, cmap_wait},
-	(cmap_t){'<', NULL, cmap_go_up},
-	(cmap_t){'>', NULL, cmap_go_down},
-	(cmap_t){SDLK_KP_1, NULL, cmap_go},
-	(cmap_t){SDLK_KP_2, NULL, cmap_go},
-	(cmap_t){SDLK_KP_3, NULL, cmap_go},
-	(cmap_t){SDLK_KP_4, NULL, cmap_go},
-	(cmap_t){SDLK_KP_6, NULL, cmap_go},
-	(cmap_t){SDLK_KP_7, NULL, cmap_go},
-	(cmap_t){SDLK_KP_8, NULL, cmap_go},
-	(cmap_t){SDLK_KP_9, NULL, cmap_go},
-	(cmap_t){'p', "He(Put where?)", cmap_put},
-	(cmap_t){'d', "H(Drop what?)", cmap_drop},
-	(cmap_t){'g', "He(Grab what?)g(By what?)", cmap_grab},
-	(cmap_t){'o', "He(Open door?)", cmap_open_door},
-	(cmap_t){'t', "He(Into what?)", cmap_throw},
-	(cmap_t){'a', "e(Attack what?)a", cmap_attack},
-	(cmap_t){'f', "H(Fill which container?)e(Where to fill from?)", cmap_fill_container},
-	(cmap_t){'e', "H(Which container to empty?)", cmap_empty_container},
+	{'/', NULL, cmap_toggle_skip_moving},
+	{'w', NULL, cmap_wait},
+	{'<', NULL, cmap_go_up},
+	{'>', NULL, cmap_go_down},
+	{SDLK_KP_1, NULL, cmap_go},
+	{SDLK_KP_2, NULL, cmap_go},
+	{SDLK_KP_3, NULL, cmap_go},
+	{SDLK_KP_4, NULL, cmap_go},
+	{SDLK_KP_6, NULL, cmap_go},
+	{SDLK_KP_7, NULL, cmap_go},
+	{SDLK_KP_8, NULL, cmap_go},
+	{SDLK_KP_9, NULL, cmap_go},
+	{'p', "He(Put where?)", cmap_put},
+	{'d', "H(Drop what?)", cmap_drop},
+	{'g', "He(Grab what?)g(By what?)", cmap_grab},
+	{'o', "He(Open door?)", cmap_open_door},
+	{'O', "He(Close door?)", cmap_close_door},
+	{'t', "He(Into what?)", cmap_throw},
+	{'a', "e(Attack what?)a", cmap_attack},
+	{'f', "H(Fill which container?)e(Where to fill from?)", cmap_fill_container},
+	{'e', "H(Which container to empty?)", cmap_empty_container},
+	{'r', "H(Which limb?)e(Where to press?)g(Which button?)", cmap_press_button},
 };
 const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
 

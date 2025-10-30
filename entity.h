@@ -47,6 +47,7 @@ typedef enum material_type {
 	MAT_WOOD,
 	MAT_STONE,
 	MAT_PLANT,
+	MAT_GLASS,
 } material_type;
 
 /* Note that this is a bit-field enum */
@@ -194,19 +195,19 @@ void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag);
 void trigger_drop(entity_s *s, effect_s *h);
 void trigger_put(entity_s *s, effect_s *h, entity_s *w);
 void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
-void trigger_touch(entity_s *s, effect_s *h, entity_s *w);
 void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *used_limb, uint32_t weapon_mat);
-void trigger_aim(entity_s *s, effect_s *e, int x, int y, int z, entity_s *ent);
 void trigger_fill_cont(entity_s *s, effect_s *h, entity_s *t);
 void trigger_empty_cont(entity_s *s, effect_s *h);
+void trigger_press_button(entity_s *s, effect_s *h, entity_s *t, effect_s *w);
+void trigger_open_door(entity_s *s, effect_s *h, entity_s *t, int dir);
 
 void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag);
 void hand_drop(entity_s *ent, effect_s *hand);
 void hand_put(entity_s *ent, effect_s *hand, entity_s *w);
 void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
-void hand_aim(entity_s *s, effect_s *h, int x, int y, int z, entity_s *ent);
 void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t);
 void hand_empty_cont(entity_s *s, effect_s *h);
+void hand_press_button(entity_s *s, effect_s *h, entity_s *t, uint32_t mat_tag);
 
 void dump_effect(effect_s *e, FILE *stream);
 void dump_entity(entity_s *s, FILE *stream);
@@ -219,7 +220,10 @@ entity_s *load_sector_list(FILE *stream);
 effect_s* scan_effect(int n_ent, entity_s **a_ent, FILE *stream);
 entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream);
 void unload_sector(sector_s *s);
+
 void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream);
+int effect_rem_ph_item(entity_s *s, effect_s *e);
+
 int entity_get_index(entity_s *s);
 void entity_set_index(entity_s *s, int i);
 int entity_num_effects(entity_s *s);
@@ -237,6 +241,7 @@ int entity_reachable(entity_s *s, effect_s *limb, entity_s *e);
 entity_s* tracer_check_bump(entity_s *s, int x, int y, int z);
 
 void unparent_entity(entity_s *s);
+void unparent_attach_entity(entity_s *s);
 void lift_entity(entity_s *s);
 
 int entity_weight(entity_s *s);

@@ -82,35 +82,27 @@ typedef struct effect_a_pressure_plate_data {
 	int thresold;
 } effect_a_pressure_plate_data;
 typedef struct effect_m_grab_data {
-	int eff_tag;
+	uint32_t eff_tag;
 	struct entity_s *ent;
 	uint32_t mat_tag;
 } effect_m_grab_data;
 typedef struct effect_m_drop_data {
-	int eff_tag;
+	uint32_t eff_tag;
 } effect_m_drop_data;
 typedef struct effect_m_put_data {
-	int eff_tag;
+	uint32_t eff_tag;
 	struct entity_s *where;
 } effect_m_put_data;
 typedef struct effect_m_throw_data {
-	int eff_tag;
+	uint32_t eff_tag;
 	int x;
 	int y;
 	int z;
 	int speed;
 } effect_m_throw_data;
-typedef struct effect_m_aim_for_data {
-	int eff_tag;
-	int x;
-	int y;
-	int z;
-	struct entity_s *ent;
-} effect_m_aim_for_data;
-typedef struct effect_m_touch_data {
-	int eff_tag;
-	struct entity_s *ent;
-} effect_m_touch_data;
+typedef struct effect_r_bottle_dispenser_data {
+	uint32_t mat_tag;
+} effect_r_bottle_dispenser_data;
 typedef struct effect_stats_data {
 	int str;
 	int dex;
@@ -133,12 +125,28 @@ typedef struct effect_wet_data {
 	int amount;
 } effect_wet_data;
 typedef struct effect_m_fill_cont_data {
-	int hand_tag;
+	uint32_t hand_tag;
 	struct entity_s *target;
 } effect_m_fill_cont_data;
 typedef struct effect_m_empty_cont_data {
-	int hand_tag;
+	uint32_t hand_tag;
 } effect_m_empty_cont_data;
+typedef struct effect_m_press_button_data {
+	uint32_t hand_tag;
+	struct entity_s *target;
+	uint32_t mat_tag;
+} effect_m_press_button_data;
+typedef struct effect_s_press_button_data {
+	uint32_t mat_tag;
+} effect_s_press_button_data;
+typedef struct effect_m_open_door_data {
+	int dir;
+	uint32_t hand_tag;
+	struct entity_s *target;
+} effect_m_open_door_data;
+typedef struct effect_door_data {
+	int opened;
+} effect_door_data;
 typedef enum effect_type {
 	EF_B_NONEXISTENT,
 	EF_B_INDEX,
@@ -159,7 +167,6 @@ typedef enum effect_type {
 	EF_TABLE,
 	EF_TABLE_ITEM,
 	EF_FIRE,
-	EF_S_TOUCH,
 	EF_S_BUMP,
 	EF_S_DMG,
 	EF_ROTATION,
@@ -169,11 +176,7 @@ typedef enum effect_type {
 	EF_M_DROP,
 	EF_M_PUT,
 	EF_M_THROW,
-	EF_M_AIM_FOR,
-	EF_M_TOUCH,
-	EF_R_TOUCH_RNG_TP,
-	EF_R_TOUCH_TOGGLE_BLOCK,
-	EF_R_TOUCH_SHOOT_PROJECTILE,
+	EF_R_BOTTLE_DISPENSER,
 	EF_STATS,
 	EF_PH_LIQUID,
 	EF_CONTAINER,
@@ -181,5 +184,9 @@ typedef enum effect_type {
 	EF_WET,
 	EF_M_FILL_CONT,
 	EF_M_EMPTY_CONT,
+	EF_M_PRESS_BUTTON,
+	EF_S_PRESS_BUTTON,
+	EF_M_OPEN_DOOR,
+	EF_DOOR,
 	EF_UNKNOWN = -1
 } effect_type;

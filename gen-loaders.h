@@ -27,12 +27,6 @@ void effect_dump_ph_item(effect_s *e, FILE *stream) {
 	{ int t; if (d->parent == NULL){t = -1;}else{t = entity_get_index(d->parent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->parent_type, sizeof(parent_ref_type), 1, stream);
 }
-int effect_rem_ph_item(entity_s *s, effect_s *e) {
-	(void)s; (void)e;
-	effect_ph_item_data *d = (void*)e->data;
-	if (d->parent != NULL && effect_by_type(d->parent->effects, EF_B_NONEXISTENT) != NULL) d->parent = NULL;
-	return 0;
-}
 void effect_scan_tracer(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_tracer_data *d = (void*)e->data;
@@ -257,13 +251,13 @@ void effect_dump_a_pressure_plate(effect_s *e, FILE *stream) {
 void effect_scan_m_grab(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_grab_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
 	fread(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_m_grab(effect_s *e, FILE *stream) {
 	effect_m_grab_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
@@ -276,21 +270,21 @@ int effect_rem_m_grab(entity_s *s, effect_s *e) {
 void effect_scan_m_drop(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_drop_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->eff_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_m_drop(effect_s *e, FILE *stream) {
 	effect_m_drop_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_scan_m_put(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_put_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->where = NULL; else d->where = a_ent[t]; }
 }
 void effect_dump_m_put(effect_s *e, FILE *stream) {
 	effect_m_put_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->where == NULL){t = -1;}else{t = entity_get_index(d->where);} fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_m_put(entity_s *s, effect_s *e) {
@@ -302,7 +296,7 @@ int effect_rem_m_put(entity_s *s, effect_s *e) {
 void effect_scan_m_throw(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_throw_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
+	fread(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	fread(&d->x, sizeof(int), 1, stream);
 	fread(&d->y, sizeof(int), 1, stream);
 	fread(&d->z, sizeof(int), 1, stream);
@@ -310,51 +304,20 @@ void effect_scan_m_throw(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream)
 }
 void effect_dump_m_throw(effect_s *e, FILE *stream) {
 	effect_m_throw_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
+	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	fwrite(&d->x, sizeof(int), 1, stream);
 	fwrite(&d->y, sizeof(int), 1, stream);
 	fwrite(&d->z, sizeof(int), 1, stream);
 	fwrite(&d->speed, sizeof(int), 1, stream);
 }
-void effect_scan_m_aim_for(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+void effect_scan_r_bottle_dispenser(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
-	effect_m_aim_for_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
-	fread(&d->x, sizeof(int), 1, stream);
-	fread(&d->y, sizeof(int), 1, stream);
-	fread(&d->z, sizeof(int), 1, stream);
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
+	effect_r_bottle_dispenser_data *d = (void*)e->data;
+	fread(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
-void effect_dump_m_aim_for(effect_s *e, FILE *stream) {
-	effect_m_aim_for_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
-	fwrite(&d->x, sizeof(int), 1, stream);
-	fwrite(&d->y, sizeof(int), 1, stream);
-	fwrite(&d->z, sizeof(int), 1, stream);
-	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
-}
-int effect_rem_m_aim_for(entity_s *s, effect_s *e) {
-	(void)s; (void)e;
-	effect_m_aim_for_data *d = (void*)e->data;
-	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
-	return 0;
-}
-void effect_scan_m_touch(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
-	(void)n_ent; (void)a_ent;
-	effect_m_touch_data *d = (void*)e->data;
-	fread(&d->eff_tag, sizeof(int), 1, stream);
-	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->ent = NULL; else d->ent = a_ent[t]; }
-}
-void effect_dump_m_touch(effect_s *e, FILE *stream) {
-	effect_m_touch_data *d = (void*)e->data;
-	fwrite(&d->eff_tag, sizeof(int), 1, stream);
-	{ int t; if (d->ent == NULL){t = -1;}else{t = entity_get_index(d->ent);} fwrite(&t, sizeof(int), 1, stream); }
-}
-int effect_rem_m_touch(entity_s *s, effect_s *e) {
-	(void)s; (void)e;
-	effect_m_touch_data *d = (void*)e->data;
-	if (d->ent == NULL || effect_by_type(d->ent->effects, EF_B_NONEXISTENT) != NULL) return 1;
-	return 0;
+void effect_dump_r_bottle_dispenser(effect_s *e, FILE *stream) {
+	effect_r_bottle_dispenser_data *d = (void*)e->data;
+	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_scan_stats(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
@@ -422,12 +385,12 @@ void effect_dump_wet(effect_s *e, FILE *stream) {
 void effect_scan_m_fill_cont(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_fill_cont_data *d = (void*)e->data;
-	fread(&d->hand_tag, sizeof(int), 1, stream);
+	fread(&d->hand_tag, sizeof(uint32_t), 1, stream);
 	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->target = NULL; else d->target = a_ent[t]; }
 }
 void effect_dump_m_fill_cont(effect_s *e, FILE *stream) {
 	effect_m_fill_cont_data *d = (void*)e->data;
-	fwrite(&d->hand_tag, sizeof(int), 1, stream);
+	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->target == NULL){t = -1;}else{t = entity_get_index(d->target);} fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_m_fill_cont(entity_s *s, effect_s *e) {
@@ -439,11 +402,67 @@ int effect_rem_m_fill_cont(entity_s *s, effect_s *e) {
 void effect_scan_m_empty_cont(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
 	(void)n_ent; (void)a_ent;
 	effect_m_empty_cont_data *d = (void*)e->data;
-	fread(&d->hand_tag, sizeof(int), 1, stream);
+	fread(&d->hand_tag, sizeof(uint32_t), 1, stream);
 }
 void effect_dump_m_empty_cont(effect_s *e, FILE *stream) {
 	effect_m_empty_cont_data *d = (void*)e->data;
-	fwrite(&d->hand_tag, sizeof(int), 1, stream);
+	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
+}
+void effect_scan_m_press_button(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_m_press_button_data *d = (void*)e->data;
+	fread(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->target = NULL; else d->target = a_ent[t]; }
+	fread(&d->mat_tag, sizeof(uint32_t), 1, stream);
+}
+void effect_dump_m_press_button(effect_s *e, FILE *stream) {
+	effect_m_press_button_data *d = (void*)e->data;
+	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; if (d->target == NULL){t = -1;}else{t = entity_get_index(d->target);} fwrite(&t, sizeof(int), 1, stream); }
+	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
+}
+int effect_rem_m_press_button(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_press_button_data *d = (void*)e->data;
+	if (d->target == NULL || effect_by_type(d->target->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
+void effect_scan_s_press_button(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_s_press_button_data *d = (void*)e->data;
+	fread(&d->mat_tag, sizeof(uint32_t), 1, stream);
+}
+void effect_dump_s_press_button(effect_s *e, FILE *stream) {
+	effect_s_press_button_data *d = (void*)e->data;
+	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
+}
+void effect_scan_m_open_door(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_m_open_door_data *d = (void*)e->data;
+	fread(&d->dir, sizeof(int), 1, stream);
+	fread(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->target = NULL; else d->target = a_ent[t]; }
+}
+void effect_dump_m_open_door(effect_s *e, FILE *stream) {
+	effect_m_open_door_data *d = (void*)e->data;
+	fwrite(&d->dir, sizeof(int), 1, stream);
+	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; if (d->target == NULL){t = -1;}else{t = entity_get_index(d->target);} fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_m_open_door(entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_open_door_data *d = (void*)e->data;
+	if (d->target == NULL || effect_by_type(d->target->effects, EF_B_NONEXISTENT) != NULL) return 1;
+	return 0;
+}
+void effect_scan_door(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
+	(void)n_ent; (void)a_ent;
+	effect_door_data *d = (void*)e->data;
+	fread(&d->opened, sizeof(int), 1, stream);
+}
+void effect_dump_door(effect_s *e, FILE *stream) {
+	effect_door_data *d = (void*)e->data;
+	fwrite(&d->opened, sizeof(int), 1, stream);
 }
 
 int effect_data_size[] = {
@@ -466,7 +485,6 @@ int effect_data_size[] = {
 	[EF_TABLE] = 0,
 	[EF_TABLE_ITEM] = sizeof(effect_table_item_data),
 	[EF_FIRE] = 0,
-	[EF_S_TOUCH] = 0,
 	[EF_S_BUMP] = sizeof(effect_s_bump_data),
 	[EF_S_DMG] = sizeof(effect_s_dmg_data),
 	[EF_ROTATION] = sizeof(effect_rotation_data),
@@ -476,11 +494,7 @@ int effect_data_size[] = {
 	[EF_M_DROP] = sizeof(effect_m_drop_data),
 	[EF_M_PUT] = sizeof(effect_m_put_data),
 	[EF_M_THROW] = sizeof(effect_m_throw_data),
-	[EF_M_AIM_FOR] = sizeof(effect_m_aim_for_data),
-	[EF_M_TOUCH] = sizeof(effect_m_touch_data),
-	[EF_R_TOUCH_RNG_TP] = 0,
-	[EF_R_TOUCH_TOGGLE_BLOCK] = 0,
-	[EF_R_TOUCH_SHOOT_PROJECTILE] = 0,
+	[EF_R_BOTTLE_DISPENSER] = sizeof(effect_r_bottle_dispenser_data),
 	[EF_STATS] = sizeof(effect_stats_data),
 	[EF_PH_LIQUID] = sizeof(effect_ph_liquid_data),
 	[EF_CONTAINER] = sizeof(effect_container_data),
@@ -488,6 +502,10 @@ int effect_data_size[] = {
 	[EF_WET] = sizeof(effect_wet_data),
 	[EF_M_FILL_CONT] = sizeof(effect_m_fill_cont_data),
 	[EF_M_EMPTY_CONT] = sizeof(effect_m_empty_cont_data),
+	[EF_M_PRESS_BUTTON] = sizeof(effect_m_press_button_data),
+	[EF_S_PRESS_BUTTON] = sizeof(effect_s_press_button_data),
+	[EF_M_OPEN_DOOR] = sizeof(effect_m_open_door_data),
+	[EF_DOOR] = sizeof(effect_door_data),
 };
 
 effect_dump_t effect_dump_functions[] = {
@@ -510,7 +528,6 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_dump_table_item,
 	[EF_FIRE] = NULL,
-	[EF_S_TOUCH] = NULL,
 	[EF_S_BUMP] = effect_dump_s_bump,
 	[EF_S_DMG] = effect_dump_s_dmg,
 	[EF_ROTATION] = effect_dump_rotation,
@@ -520,11 +537,7 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_M_DROP] = effect_dump_m_drop,
 	[EF_M_PUT] = effect_dump_m_put,
 	[EF_M_THROW] = effect_dump_m_throw,
-	[EF_M_AIM_FOR] = effect_dump_m_aim_for,
-	[EF_M_TOUCH] = effect_dump_m_touch,
-	[EF_R_TOUCH_RNG_TP] = NULL,
-	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
-	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_R_BOTTLE_DISPENSER] = effect_dump_r_bottle_dispenser,
 	[EF_STATS] = effect_dump_stats,
 	[EF_PH_LIQUID] = effect_dump_ph_liquid,
 	[EF_CONTAINER] = effect_dump_container,
@@ -532,6 +545,10 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_WET] = effect_dump_wet,
 	[EF_M_FILL_CONT] = effect_dump_m_fill_cont,
 	[EF_M_EMPTY_CONT] = effect_dump_m_empty_cont,
+	[EF_M_PRESS_BUTTON] = effect_dump_m_press_button,
+	[EF_S_PRESS_BUTTON] = effect_dump_s_press_button,
+	[EF_M_OPEN_DOOR] = effect_dump_m_open_door,
+	[EF_DOOR] = effect_dump_door,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -554,7 +571,6 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_scan_table_item,
 	[EF_FIRE] = NULL,
-	[EF_S_TOUCH] = NULL,
 	[EF_S_BUMP] = effect_scan_s_bump,
 	[EF_S_DMG] = effect_scan_s_dmg,
 	[EF_ROTATION] = effect_scan_rotation,
@@ -564,11 +580,7 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_M_DROP] = effect_scan_m_drop,
 	[EF_M_PUT] = effect_scan_m_put,
 	[EF_M_THROW] = effect_scan_m_throw,
-	[EF_M_AIM_FOR] = effect_scan_m_aim_for,
-	[EF_M_TOUCH] = effect_scan_m_touch,
-	[EF_R_TOUCH_RNG_TP] = NULL,
-	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
-	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_R_BOTTLE_DISPENSER] = effect_scan_r_bottle_dispenser,
 	[EF_STATS] = effect_scan_stats,
 	[EF_PH_LIQUID] = effect_scan_ph_liquid,
 	[EF_CONTAINER] = effect_scan_container,
@@ -576,6 +588,10 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_WET] = effect_scan_wet,
 	[EF_M_FILL_CONT] = effect_scan_m_fill_cont,
 	[EF_M_EMPTY_CONT] = effect_scan_m_empty_cont,
+	[EF_M_PRESS_BUTTON] = effect_scan_m_press_button,
+	[EF_S_PRESS_BUTTON] = effect_scan_s_press_button,
+	[EF_M_OPEN_DOOR] = effect_scan_m_open_door,
+	[EF_DOOR] = effect_scan_door,
 };
 
 effect_rem_t effect_rem_functions[] = {
@@ -598,7 +614,6 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_TABLE] = NULL,
 	[EF_TABLE_ITEM] = effect_rem_table_item,
 	[EF_FIRE] = NULL,
-	[EF_S_TOUCH] = NULL,
 	[EF_S_BUMP] = effect_rem_s_bump,
 	[EF_S_DMG] = NULL,
 	[EF_ROTATION] = NULL,
@@ -608,11 +623,7 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_M_DROP] = NULL,
 	[EF_M_PUT] = effect_rem_m_put,
 	[EF_M_THROW] = NULL,
-	[EF_M_AIM_FOR] = effect_rem_m_aim_for,
-	[EF_M_TOUCH] = effect_rem_m_touch,
-	[EF_R_TOUCH_RNG_TP] = NULL,
-	[EF_R_TOUCH_TOGGLE_BLOCK] = NULL,
-	[EF_R_TOUCH_SHOOT_PROJECTILE] = NULL,
+	[EF_R_BOTTLE_DISPENSER] = NULL,
 	[EF_STATS] = NULL,
 	[EF_PH_LIQUID] = NULL,
 	[EF_CONTAINER] = NULL,
@@ -620,4 +631,8 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_WET] = NULL,
 	[EF_M_FILL_CONT] = effect_rem_m_fill_cont,
 	[EF_M_EMPTY_CONT] = NULL,
+	[EF_M_PRESS_BUTTON] = effect_rem_m_press_button,
+	[EF_S_PRESS_BUTTON] = NULL,
+	[EF_M_OPEN_DOOR] = effect_rem_m_open_door,
+	[EF_DOOR] = NULL,
 };
