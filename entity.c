@@ -5,7 +5,7 @@
 #include "omalloc.h"
 #include "rng.h"
 
-sectors_s *g_sectors;
+sector_s *g_sectors;
 entity_s *g_entities;
 rng_state_s *g_dice;
 
@@ -57,14 +57,63 @@ void entity_prepend(entity_s *g, entity_s *s) {
 	if (g != NULL) g->prev = s;
 }
 
-sector_s *sector_get_sector(sectors_s *s, int x, int y, int z) {
-	while (s != NULL) {
-		if (s->x == x && s->y == y && s->z == z) {
-			return s;
-		}
-		s = s->snext;
+sector_s *sector_get_sector(sector_s *s, int x, int y, int z) {
+	if (s == NULL)
+		return NULL;
+	if (s->x == x && s->y == y && s->z == z)
+		return s;
+	int c_ind;
+	if (s->x != x) {
+		c_ind = s->x < x;
+	} else if (s->y != y) {
+		c_ind = s->y < y;
+	} else {
+		c_ind = s->z < z;
 	}
-	return NULL;
+	return sector_get_sector(s->ch[c_ind], x, y, z);
+}
+
+void sector_split(sector_s *s, int at_x, int at_y, int at_z, sector_s **buf) {
+	if (s == NULL) {
+		buf[0] = NULL;
+		buf[1] = NULL;
+		return;
+	}
+	int c_ind;
+	if (s->x != at_x) {
+		c_ind = s->x < at_x;
+	} else if (s->y != at_y) {
+		c_ind = s->y < at_y;
+	} else {
+		c_ind = s->z < at_z;
+	}
+	sector_s *lbuf[2];
+	sector_split(s->ch[c_ind], at_x, at_y, at_z, lbuf);
+	buf[c_ind] = lbuf[c_ind];
+	s->ch[c_ind] = lbuf[!c_ind];
+	buf[!c_ind] = s;
+}
+
+sector_s* sector_insert(sector_s *s, sector_s *n) {
+	if (s == NULL)
+		return n;
+	if (n == NULL)
+		return s;
+	if (s->prio > n->prio) {
+		int c_ind;
+		if (s->x != n->x) {
+			c_ind = s->x < n->x;
+		} else if (s->y != n->y) {
+			c_ind = s->y < n->y;
+		} else {
+			c_ind = s->z < n->z;
+		}
+		s->ch[c_ind] = sector_insert(s->ch[c_ind], n);
+		return s;
+	} else {
+		sector_split(s, n->x, n->y, n->z, n->ch);
+		return n;
+	}
 }
 
 entity_l_s *sector_get_block_entities(sector_s *s, int x, int y, int z) {
@@ -76,14 +125,20 @@ entity_l_s *sector_get_block_entities(sector_s *s, int x, int y, int z) {
 int sector_get_block_floor_up(sector_s *s, int x, int y, int z) {
 	entity_l_s *e = sector_get_block_entities(s, x, y, z);
 	while (e != NULL) {
-		effect_s *ef = effect_by_type(e->ent->effects, EF_PH_BLOCK);
-		if (ef != NULL) {
-			effect_ph_block_data *d = (void*)ef->data;
-			if (d->floor_up) {
+		effect_ph_block_data d;
+		if (entity_load_effect(e->ent, EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_FLOOR_UP) {
 				return 1;
 			}
 		}
 		e = e->next;
+	}
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(ent_cptr(s, x, y, z), EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_FLOOR_UP)
+				return 1;
+		}
 	}
 	return 0;
 }
@@ -91,14 +146,20 @@ int sector_get_block_floor_up(sector_s *s, int x, int y, int z) {
 int sector_get_block_floor(sector_s *s, int x, int y, int z) {
 	entity_l_s *e = sector_get_block_entities(s, x, y, z);
 	while (e != NULL) {
-		effect_s *ef = effect_by_type(e->ent->effects, EF_PH_BLOCK);
-		if (ef != NULL) {
-			effect_ph_block_data *d = (void*)ef->data;
-			if (d->floor) {
+		effect_ph_block_data d;
+		if (entity_load_effect(e->ent, EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_FLOOR) {
 				return 1;
 			}
 		}
 		e = e->next;
+	}
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(ent_cptr(s, x, y, z), EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_FLOOR)
+				return 1;
+		}
 	}
 	return 0;
 }
@@ -127,14 +188,20 @@ int block_fallable(int x, int y, int z) {
 int sector_get_block_blocked_movement(sector_s *s, int x, int y, int z) {
 	entity_l_s *e = sector_get_block_entities(s, x, y, z);
 	while (e != NULL) {
-		effect_s *ef = effect_by_type(e->ent->effects, EF_PH_BLOCK);
-		if (ef != NULL) {
-			effect_ph_block_data *d = (void*)ef->data;
-			if (d->block_movement) {
+		effect_ph_block_data d;
+		if (entity_load_effect(e->ent, EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_BLOCK_MOVEMENT) {
 				return 1;
 			}
 		}
 		e = e->next;
+	}
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(ent_cptr(s, x, y, z), EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_BLOCK_MOVEMENT)
+				return 1;
+		}
 	}
 	return 0;
 }
@@ -142,14 +209,20 @@ int sector_get_block_blocked_movement(sector_s *s, int x, int y, int z) {
 int sector_get_block_stairs(sector_s *s, int x, int y, int z) {
 	entity_l_s *e = sector_get_block_entities(s, x, y, z);
 	while (e != NULL) {
-		effect_s *ef = effect_by_type(e->ent->effects, EF_PH_BLOCK);
-		if (ef != NULL) {
-			effect_ph_block_data *d = (void*)ef->data;
-			if (d->stair) {
+		effect_ph_block_data d;
+		if (entity_load_effect(e->ent, EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_STAIR) {
 				return 1;
 			}
 		}
 		e = e->next;
+	}
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(ent_cptr(s, x, y, z), EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_STAIR)
+				return 1;
+		}
 	}
 	return 0;
 }
@@ -157,16 +230,206 @@ int sector_get_block_stairs(sector_s *s, int x, int y, int z) {
 int sector_get_block_slope(sector_s *s, int x, int y, int z) {
 	entity_l_s *e = sector_get_block_entities(s, x, y, z);
 	while (e != NULL) {
-		effect_s *ef = effect_by_type(e->ent->effects, EF_PH_BLOCK);
-		if (ef != NULL) {
-			effect_ph_block_data *d = (void*)ef->data;
-			if (d->slope) {
+		effect_ph_block_data d;
+		if (entity_load_effect(e->ent, EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_SLOPE) {
 				return 1;
 			}
 		}
 		e = e->next;
 	}
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(ent_cptr(s, x, y, z), EF_PH_BLOCK, &d)) {
+			if (d.prop & PB_SLOPE)
+				return 1;
+		}
+	}
 	return 0;
+}
+
+int entity_has_effect(ent_ptr sp, effect_type t) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return 0;
+	switch (s->common_type) {
+	case CT_FLOOR:
+	case CT_WALL: {
+		if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
+			return 1;
+	} break;
+	case CT_NONE:
+		break;
+	}
+	return effect_by_type(s->effects, t) != NULL;
+}
+
+int entity_load_effect(ent_ptr sp, effect_type t, void *d) {
+	if (sp == ENT_NULL)
+		return 0;
+	entity_s *s = ent_aptr(sp);
+	if (s != NULL) {
+		switch (s->common_type) {
+		case CT_WALL: {
+			if (t == EF_PH_BLOCK) {
+				effect_ph_block_data *rd = d;
+				rd->x = ((int*)s->common_data)[0];
+				rd->y = ((int*)s->common_data)[1];
+				rd->z = ((int*)s->common_data)[2];
+				rd->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
+				return 1;
+			}
+			if (t == EF_RENDER) {
+				effect_render_data *rd = d;
+				rd->r = 0;
+				rd->g = 255;
+				rd->b = 0;
+				rd->a = 128;
+				rd->chr = '#';
+				return 1;
+			}
+			if (t == EF_MATERIAL) {
+				effect_material_data *rd = d;
+				rd->type = MAT_WOOD;
+				rd->dur = ((int*)s->common_data)[3];
+				rd->prop = 0;
+				rd->tag = 0;
+				return 1;
+			}
+		} break;
+		case CT_FLOOR: {
+			if (t == EF_PH_BLOCK) {
+				effect_ph_block_data *rd = d;
+				rd->x = ((int*)s->common_data)[0];
+				rd->y = ((int*)s->common_data)[1];
+				rd->z = ((int*)s->common_data)[2];
+				rd->prop = PB_FLOOR;
+				return 1;
+			}
+			if (t == EF_RENDER) {
+				effect_render_data *rd = d;
+				rd->r = 0;
+				rd->g = 255;
+				rd->b = 0;
+				rd->a = 128;
+				rd->chr = '_';
+				return 1;
+			}
+			if (t == EF_MATERIAL) {
+				effect_material_data *rd = d;
+				rd->type = MAT_WOOD;
+				rd->dur = ((int*)s->common_data)[3];
+				rd->prop = 0;
+				rd->tag = 0;
+				return 1;
+			}
+		} break;
+		case CT_NONE:
+			break;
+		}
+		effect_s *e = effect_by_type(s->effects, t);
+		if (e == NULL)
+			return 0;
+		memcpy(d, e->data, effect_data_size[t]);
+		return 1;
+	}
+	int x, y, z;
+	sector_s *sec = ent_acptr(sp, &x, &y, &z);
+	if (sec != NULL) {
+		block_s blk = sec->block_blocks[x][y][z];
+		if (blk.type != BLK_EMPTY) {
+			switch (blk.type) {
+			case BLK_FLOOR: {
+				switch (t) {
+				case EF_PH_BLOCK: {
+					effect_ph_block_data *rd = d;
+					rd->x = x + sec->x * G_SECTOR_SIZE;
+					rd->y = y + sec->y * G_SECTOR_SIZE;
+					rd->z = z + sec->z * G_SECTOR_SIZE;
+					rd->prop = PB_FLOOR;
+				} return 1;
+				case EF_RENDER: {
+					effect_render_data *rd = d;
+					rd->r = 0;
+					rd->g = 255;
+					rd->b = 0;
+					rd->a = 128;
+					rd->chr = '_';
+				} return 1;
+				case EF_MATERIAL: {
+					effect_material_data *rd = d;
+					rd->type = MAT_WOOD;
+					rd->dur = blk.dur;
+					rd->prop = 0;
+					rd->tag = 0;
+				} return 1;
+				default: return 0;
+				}
+			} break;
+			case BLK_WALL: {
+				switch (t) {
+				case EF_PH_BLOCK: {
+					effect_ph_block_data *rd = d;
+					rd->x = x + sec->x * G_SECTOR_SIZE;
+					rd->y = y + sec->y * G_SECTOR_SIZE;
+					rd->z = z + sec->z * G_SECTOR_SIZE;
+					rd->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
+				} return 1;
+				case EF_RENDER: {
+					effect_render_data *rd = d;
+					rd->r = 0;
+					rd->g = 255;
+					rd->b = 0;
+					rd->a = 128;
+					rd->chr = '#';
+				} return 1;
+				case EF_MATERIAL: {
+					effect_material_data *rd = d;
+					rd->type = MAT_WOOD;
+					rd->dur = blk.dur;
+					rd->prop = 0;
+					rd->tag = 0;
+				} return 1;
+				default: return 0;
+				}
+			} break;
+			}
+		}
+		return 0;
+	}
+	return 0;
+}
+
+int entity_store_effect(ent_ptr sp, effect_type t, void *d) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return 0;
+	switch (s->common_type) {
+	case CT_FLOOR:
+	case CT_WALL: {
+		if (t == EF_PH_BLOCK) {
+			effect_ph_block_data *rd = d;
+			((int*)s->common_data)[0] = rd->x;
+			((int*)s->common_data)[1] = rd->y;
+			((int*)s->common_data)[2] = rd->z;
+			return 1;
+		}
+		if (t == EF_RENDER)
+			return 0;
+		if (t == EF_MATERIAL) {
+			effect_material_data *rd = d;
+			((int*)s->common_data)[3] = rd->dur;
+			return 1;
+		}
+	} break;
+	case CT_NONE:
+		break;
+	}
+	effect_s *e = effect_by_type(s->effects, t);
+	if (e == NULL)
+		return 0;
+	memcpy(e->data, d, effect_data_size[t]);
+	return 1;
 }
 
 effect_s *effect_by_type(effect_s *s, effect_type t) {
@@ -217,11 +480,10 @@ effect_s* prev_effect_by_type(effect_s *s, effect_type t) {
 	return NULL;
 }
 
-void apply_triggers(entity_s *s) {
+void apply_triggers(ent_ptr s) {
 	{
-		effect_s *ef = effect_by_type(s->effects, EF_A_PRESSURE_PLATE);
-		if (ef != NULL) {
-			effect_a_pressure_plate_data *press_d = (void*)ef->data;
+		effect_a_pressure_plate_data press_d;
+		if (entity_load_effect(s, EF_A_PRESSURE_PLATE, &press_d)) {
 			int pressure = 0;
 			int x, y, z;
 			entity_coords(s, &x, &y, &z);
@@ -235,17 +497,20 @@ void apply_triggers(entity_s *s) {
 				pressure += entity_weight(l->ent);
 				l = l->next;
 			}
-			effect_s *ph_b = effect_by_type(s->effects, EF_PH_BLOCK);
-			if (ph_b != NULL) {
-				effect_ph_block_data *d = (void*)ph_b->data;
-				d->floor = pressure < press_d->thresold;
+			effect_ph_block_data d;
+			if (entity_load_effect(s, EF_PH_BLOCK, &d)) {
+				if (pressure < press_d.thresold) {
+					d.prop |= PB_FLOOR;
+				} else {
+					d.prop &= ~PB_FLOOR;
+				}
+				entity_store_effect(s, EF_PH_BLOCK, &d);
 			}
 		}
 	}
 	{
-		effect_s *ef = effect_by_type(s->effects, EF_A_CIRCLE_MOVE);
-		if (ef != NULL) {
-			if (effect_by_type(s->effects, EF_BLOCK_MOVE) == NULL) {
+		if (entity_has_effect(s, EF_A_CIRCLE_MOVE)) {
+			if (!entity_has_effect(s, EF_BLOCK_MOVE)) {
 				int x, y, z;
 				entity_coords(s, &x, &y, &z);
 				int wx = 0, wy = 0;
@@ -269,21 +534,19 @@ void apply_triggers(entity_s *s) {
 	}
 }
 
-void apply_instants(entity_s *s) {
+void apply_instants(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	{
 		effect_s *ef = effect_by_type(s->effects, EF_FIRE);
 		if (ef != NULL) {
-			effect_s *mat = effect_by_type(s->effects, EF_MATERIAL);
-			effect_material_data *mat_d = mat == NULL ? NULL : (void*)mat->data;
-			if (mat == NULL || (mat_d->type != MAT_WOOD && mat_d->type != MAT_PLANT)) {
+			effect_material_data mat_d;
+			if (!entity_load_effect(sp, EF_MATERIAL, &mat_d) || (mat_d.type != MAT_WOOD && mat_d.type != MAT_PLANT)) {
 				effect_unlink(s, ef);
 				free_effect(ef);
 			} else {
-				effect_s *new_ef = alloc_effect(EF_S_DMG);
-				effect_s_dmg_data *d = (void*)new_ef->data;
-				d->type = DMGT_FIRE;
-				d->val = 1;
-				effect_prepend(s, new_ef);
+				dmg_deal(sp, DMGT_FIRE, 1);
 			}
 		}
 	}
@@ -291,7 +554,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_GRAB);
 		if (ef != NULL) {
 			effect_m_grab_data *d = (void*)ef->data;
-			hand_grab(s, entity_limb_by_tag(s, d->eff_tag), d->ent, d->mat_tag);
+			hand_grab(sp, entity_limb_by_tag(s, d->eff_tag), d->ent, d->mat_tag);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -300,7 +563,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_DROP);
 		if (ef != NULL) {
 			effect_m_drop_data *d = (void*)ef->data;
-			hand_drop(s, entity_limb_by_tag(s, d->eff_tag));
+			hand_drop(sp, entity_limb_by_tag(s, d->eff_tag));
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -309,7 +572,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_PUT);
 		if (ef != NULL) {
 			effect_m_put_data *d = (void*)ef->data;
-			hand_put(s, entity_limb_by_tag(s, d->eff_tag), d->where);
+			hand_put(sp, entity_limb_by_tag(s, d->eff_tag), d->where);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -318,31 +581,16 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_THROW);
 		if (ef != NULL) {
 			effect_m_throw_data *d = (void*)ef->data;
-			hand_throw(s, entity_limb_by_tag(s, d->eff_tag), d->x, d->y, d->z, d->speed);
+			hand_throw(sp, entity_limb_by_tag(s, d->eff_tag), d->x, d->y, d->z, d->speed);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
 	}
-#if 0
-	{
-		effect_s *ef = effect_by_type(s->effects, EF_M_TOUCH);
-		if (ef != NULL) {
-			effect_m_touch_data *d = (void*)ef->data;
-			if (entity_reachable(s, entity_limb_by_tag(s, d->eff_tag), d->ent)) {
-				entity_s *target = d->ent;
-				effect_s *new_ef = alloc_effect(EF_S_TOUCH);
-				effect_prepend(target, new_ef);
-			}
-			effect_unlink(s, ef);
-			free_effect(ef);
-		}
-	}
-#endif
 	{
 		effect_s *ef = effect_by_type(s->effects, EF_M_FILL_CONT);
 		if (ef != NULL) {
 			effect_m_fill_cont_data *d = (void*)ef->data;
-			hand_fill_cont(s, entity_limb_by_tag(s, d->hand_tag), d->target);
+			hand_fill_cont(sp, entity_limb_by_tag(s, d->hand_tag), d->target);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -351,7 +599,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_EMPTY_CONT);
 		if (ef != NULL) {
 			effect_m_empty_cont_data *d = (void*)ef->data;
-			hand_empty_cont(s, entity_limb_by_tag(s, d->hand_tag));
+			hand_empty_cont(sp, entity_limb_by_tag(s, d->hand_tag));
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -360,7 +608,7 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_PRESS_BUTTON);
 		if (ef != NULL) {
 			effect_m_press_button_data *d = (void*)ef->data;
-			hand_press_button(s, entity_limb_by_tag(s, d->hand_tag), d->target, d->mat_tag);
+			hand_press_button(sp, entity_limb_by_tag(s, d->hand_tag), d->target, d->mat_tag);
 			effect_unlink(s, ef);
 			free_effect(ef);
 		}
@@ -369,14 +617,14 @@ void apply_instants(entity_s *s) {
 		effect_s *ef = effect_by_type(s->effects, EF_M_OPEN_DOOR);
 		if (ef != NULL) {
 			effect_m_open_door_data *d = (void*)ef->data;
-			effect_s *t = effect_by_type(d->target->effects, EF_DOOR);
-			if (t != NULL) {
-				effect_door_data *td = (void*)t->data;
-				td->opened += d->dir;
-				if (td->opened < 0)
-					td->opened = 0;
-				if (td->opened > 64)
-					td->opened = 64;
+			effect_door_data td;
+			if (entity_load_effect(d->target, EF_DOOR, &td)) {
+				td.opened += d->dir;
+				if (td.opened < 0)
+					td.opened = 0;
+				if (td.opened > 64)
+					td.opened = 64;
+				entity_store_effect(d->target, EF_DOOR, &td);
 			}
 			effect_unlink(s, ef);
 			free_effect(ef);
@@ -384,81 +632,11 @@ void apply_instants(entity_s *s) {
 	}
 }
 
-void apply_reactions(entity_s *s) {
+void apply_reactions(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *eft;
-#if 0
-	eft = effect_by_type(s->effects, EF_S_TOUCH);
-	if (eft != NULL) {
-		effect_s *ef = effect_by_type(s->effects, EF_R_TOUCH_RNG_TP);
-		if (ef != NULL) {
-			effect_s *ph = effect_by_type(s->effects, EF_PH_ITEM);
-			if (ph != NULL) {
-				effect_ph_item_data *d = (void*)ph->data;
-				unparent_entity(s);
-				detach_generic_entity(s);
-				int rng_x = rng_next(g_dice) % 3 - 1;
-				int rng_y = rng_next(g_dice) % 3 - 1;
-				d->x += rng_x;
-				d->y += rng_y;
-				attach_generic_entity(s);
-			}
-		}
-		ef = effect_by_type(s->effects, EF_R_TOUCH_SHOOT_PROJECTILE);
-		effect_s *ef1 = effect_by_type(s->effects, EF_AIM);
-		effect_s *ef2 = effect_by_type(s->effects, EF_PH_ITEM);
-		if (ef != NULL && ef1 != NULL && ef2 != NULL) {
-			effect_aim_data *aim_d = (void*)ef1->data;
-			/* effect_ph_item_data *ph_d = (void*)ef2->data; */
-			entity_s *new_ent = o_alloc_entity();
-			new_ent->effects = NULL;
-			{
-				effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
-				effect_ph_item_data *d = (void*)ef_ph->data;
-				entity_coords(s, &d->x, &d->y, &d->z);
-				d->weight = 1;
-				d->parent = NULL;
-				effect_prepend(new_ent, ef_ph);
-			}
-			{
-				effect_s *new_eff = alloc_effect(EF_RENDER);
-				effect_render_data *d = (void*)new_eff->data;
-				d->r = 0;
-				d->b = 100;
-				d->g = 200;
-				d->a = 100;
-				d->chr = '*';
-				effect_prepend(new_ent, new_eff);
-			}
-			{
-				effect_s *new_eff = alloc_effect(EF_TRACER);
-				effect_tracer_data *d = (void*)new_eff->data;
-				d->x = aim_d->x;
-				d->y = aim_d->y;
-				d->z = aim_d->z;
-				d->cur_x = 0;
-				d->cur_y = 0;
-				d->cur_z = 0;
-				d->speed = 5;
-				effect_prepend(new_ent, new_eff);
-			}
-			{
-				effect_s *new_eff = alloc_effect(EF_AIM);
-				effect_aim_data *d = (void*)new_eff->data;
-				d->x = 0;
-				d->y = 0;
-				d->z = 0;
-				d->ent = aim_d->ent;
-				effect_prepend(new_ent, new_eff);
-			}
-			entity_prepend(g_entities, new_ent);
-			g_entities = new_ent;
-			attach_generic_entity(new_ent);
-		}
-
-		effect_unlink(s, eft);
-		free_effect(eft);
-	}
-#endif
 	eft = effect_by_type(s->effects, EF_S_BUMP);
 	if (eft != NULL) {
 		effect_s_bump_data *eft_d = (void*)eft->data;
@@ -491,12 +669,8 @@ void apply_reactions(entity_s *s) {
 			}
 		}
 		{
-			if (eft_d->ent != NULL) {
-				effect_s *new_ef = alloc_effect(EF_S_DMG);
-				effect_s_dmg_data *new_ef_d = (void*)new_ef->data;
-				new_ef_d->type = DMGT_BLUNT;
-				new_ef_d->val = eft_d->force;
-				effect_prepend(eft_d->ent, new_ef);
+			if (eft_d->ent != ENT_NULL) {
+				dmg_deal(eft_d->ent, DMGT_BLUNT, eft_d->force);
 			}
 		}
 		{
@@ -517,26 +691,6 @@ void apply_reactions(entity_s *s) {
 		effect_unlink(s, eft);
 		free_effect(eft);
 	}
-	while ((eft = effect_by_type(s->effects, EF_S_DMG)) != NULL) {
-		effect_s_dmg_data *dmg_d = (void*)eft->data;
-		effect_s *ef_mat = effect_by_type(s->effects, EF_MATERIAL);
-		if (ef_mat != NULL) {
-			effect_material_data *mat_d = (void*)ef_mat->data;
-			int dmg_val = dmg_d->val;
-			if (dmg_d->type == DMGT_FIRE && mat_d->type != MAT_WOOD && mat_d->type != MAT_PLANT)
-				goto NO_DMG;
-			if ((dmg_d->type == DMGT_BLUNT || dmg_d->type == DMGT_CUT) && mat_d->type == MAT_GLASS)
-				dmg_val *= 5;
-			mat_d->dur -= dmg_val;
-NO_DMG:
-			if (mat_d->dur <= 0) {
-				effect_s *new_ef = alloc_effect(EF_B_NONEXISTENT);
-				effect_prepend(s, new_ef);
-			}
-		}
-		effect_unlink(s, eft);
-		free_effect(eft);
-	}
 	while ((eft = effect_by_type(s->effects, EF_S_PRESS_BUTTON)) != NULL) {
 		effect_s_press_button_data *press_d = (void*)eft->data;
 		effect_s *ef_r = effect_by_type(s->effects, EF_R_BOTTLE_DISPENSER);
@@ -550,8 +704,8 @@ NO_DMG:
 				{
 					effect_s *ph_item = alloc_effect(EF_PH_ITEM);
 					effect_ph_item_data *d = (void*)ph_item->data;
-					entity_coords(s, &d->x, &d->y, &d->z);
-					d->parent = NULL;
+					entity_coords(ent_sptr(s), &d->x, &d->y, &d->z);
+					d->parent = ENT_NULL;
 					d->weight = 3;
 					effect_prepend(new_ent, ph_item);
 				}
@@ -584,7 +738,7 @@ NO_DMG:
 				}
 				entity_prepend(g_entities, new_ent);
 				g_entities = new_ent;
-				attach_generic_entity(new_ent);
+				attach_generic_entity(ent_sptr(new_ent));
 			}
 		}
 		effect_unlink(s, eft);
@@ -592,14 +746,19 @@ NO_DMG:
 	}
 	if ((eft = effect_by_type(s->effects, EF_DOOR)) != NULL) {
 		effect_door_data *d = (void*)eft->data;
-		effect_s *bl, *r;
-		if ((bl = effect_by_type(s->effects, EF_PH_BLOCK)) != NULL) {
-			effect_ph_block_data *bd = (void*)bl->data;
-			bd->block_movement = d->opened < 64;
+		effect_s *r;
+		effect_ph_block_data bd;
+		if (entity_load_effect(ent_sptr(s), EF_PH_BLOCK, &bd)) {
+			if (d->opened < 64) {
+				bd.prop |= PB_BLOCK_MOVEMENT;
+			} else {
+				bd.prop &= ~PB_BLOCK_MOVEMENT;
+			}
 			if ((r = effect_by_type(s->effects, EF_RENDER)) != NULL) {
 				effect_render_data *d = (void*)r->data;
-				d->r = bd->block_movement ? 0 : 255;
+				d->r = (bd.prop & PB_BLOCK_MOVEMENT) ? 0 : 255;
 			}
+			entity_store_effect(ent_sptr(s), EF_PH_BLOCK, &bd);
 		}
 	}
 }
@@ -607,22 +766,22 @@ NO_DMG:
 void process_tick(entity_s *sl) {
 	entity_s *s = sl;
 	while (s != NULL) {
-		apply_triggers(s);
+		apply_triggers(ent_sptr(s));
 		s = s->next;
 	}
 	s = sl;
 	while (s != NULL) {
-		apply_instants(s);
+		apply_instants(ent_sptr(s));
 		s = s->next;
 	}
 	s = sl;
 	while (s != NULL) {
-		apply_reactions(s);
+		apply_reactions(ent_sptr(s));
 		s = s->next;
 	}
 	s = sl;
 	while (s != NULL) {
-		apply_physics(s);
+		apply_physics(ent_sptr(s));
 		s = s->next;
 	}
 }
@@ -656,8 +815,8 @@ entity_s* clear_nonexistent(entity_s *sl) {
 			}
 			if (s->next != NULL)
 				s->next->prev = s->prev;
-			unparent_entity(s);
-			detach_generic_entity(s);
+			unparent_entity(ent_sptr(s));
+			detach_generic_entity(ent_sptr(s));
 			effect_s *e = s->effects;
 			while (e != NULL) {
 				effect_s *nxt = e->next;
@@ -671,55 +830,61 @@ entity_s* clear_nonexistent(entity_s *sl) {
 	return sl;
 }
 
-int entity_coords(entity_s *s, int *x, int *y, int *z) {
-	effect_s *ph_effect;
-	ph_effect = effect_by_type(s->effects, EF_PH_BLOCK);
-	if (ph_effect != NULL) {
-		effect_ph_block_data *data = (void*)ph_effect->data;
-		*x = data->x;
-		*y = data->y;
-		*z = data->z;
-		return 1;
+int entity_coords(ent_ptr s, int *x, int *y, int *z) {
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(s, EF_PH_BLOCK, &d)) {
+			*x = d.x;
+			*y = d.y;
+			*z = d.z;
+			return 1;
+		}
 	}
-	ph_effect = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph_effect != NULL) {
-		effect_ph_item_data *data = (void*)ph_effect->data;
-		if (data->parent != NULL) {
-			return entity_coords(data->parent, x, y, z);
+	effect_ph_item_data data;
+	if (entity_load_effect(s, EF_PH_ITEM, &data)) {
+		if (data.parent != ENT_NULL) {
+			return entity_coords(data.parent, x, y, z);
 		} else {
-			*x = data->x;
-			*y = data->y;
-			*z = data->z;
+			*x = data.x;
+			*y = data.y;
+			*z = data.z;
 		}
 		return 1;
 	}
 	return 0;
 }
 
-int entity_set_coords(entity_s *s, int x, int y, int z) {
-	effect_s *ph_effect;
-	ph_effect = effect_by_type(s->effects, EF_PH_BLOCK);
-	if (ph_effect != NULL) {
-		effect_ph_block_data *data = (void*)ph_effect->data;
-		data->x = x;
-		data->y = y;
-		data->z = z;
-		return 1;
+int entity_set_coords(ent_ptr s, int x, int y, int z) {
+	{
+		effect_ph_block_data d;
+		if (entity_load_effect(s, EF_PH_BLOCK, &d)) {
+			d.x = x;
+			d.y = y;
+			d.z = z;
+			entity_store_effect(s, EF_PH_BLOCK, &d);
+			return 1;
+		}
 	}
-	ph_effect = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph_effect != NULL) {
-		effect_ph_item_data *data = (void*)ph_effect->data;
-		data->x = x;
-		data->y = y;
-		data->z = z;
+	effect_ph_item_data data;
+	if (entity_load_effect(s, EF_PH_ITEM, &data)) {
+		data.x = x;
+		data.y = y;
+		data.z = z;
+		entity_store_effect(s, EF_PH_ITEM, &data);
 		return 1;
 	}
 	return 0;
 }
 
-entity_s* entity_copy(entity_s *s) {
+entity_s* entity_copy(ent_ptr sp) {
+	// works only for `aptr' entities
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return NULL;
 	entity_s *t = o_alloc_entity();
 	t->effects = NULL;
+	t->common_type = s->common_type;
+	memcpy(t->common_data, s->common_data, sizeof(t->common_data));
 	effect_s *e = s->effects;
 	while (e != NULL) {
 		effect_s *z = alloc_effect(e->type);
@@ -732,7 +897,7 @@ entity_s* entity_copy(entity_s *s) {
 	return t;
 }
 
-void detach_entity(entity_s *s, int x, int y, int z) {
+void detach_entity(ent_ptr s, int x, int y, int z) {
 	int cx = 0;
 	int cy = 0;
 	int cz = 0;
@@ -761,7 +926,7 @@ void detach_entity(entity_s *s, int x, int y, int z) {
 	}
 }
 
-void attach_entity(entity_s *s, int x, int y, int z) {
+void attach_entity(ent_ptr s, int x, int y, int z) {
 	int cx = 0;
 	int cy = 0;
 	int cz = 0;
@@ -782,7 +947,7 @@ void attach_entity(entity_s *s, int x, int y, int z) {
 	}
 }
 
-void detach_generic_entity(entity_s *s) {
+void detach_generic_entity(ent_ptr s) {
 	int x;
 	int y;
 	int z;
@@ -791,19 +956,18 @@ void detach_generic_entity(entity_s *s) {
 	}
 }
 
-void attach_generic_entity(entity_s *s) {
+void attach_generic_entity(ent_ptr s) {
 	int x;
 	int y;
 	int z;
 	int has_parent = 0;
-	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph_item != NULL) {
-		effect_ph_item_data *d = (void*)ph_item->data;
-		if (d->parent != NULL) {
+	effect_ph_item_data d;
+	if (entity_load_effect(s, EF_PH_ITEM, &d)) {
+		if (d.parent != ENT_NULL) {
 			has_parent = 1;
 		}
 	}
-	if (!has_parent && effect_by_type(s->effects, EF_NOPHYSICS) == NULL && entity_coords(s, &x, &y, &z)) {
+	if (!has_parent && !entity_has_effect(s, EF_NOPHYSICS) && entity_coords(s, &x, &y, &z)) {
 		attach_entity(s, x, y, z);
 	}
 }
@@ -845,7 +1009,7 @@ effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag) {
 	return NULL;
 }
 
-effect_s* entity_limb_by_entity(entity_s *s, entity_s *t) {
+effect_s* entity_limb_by_entity(entity_s *s, ent_ptr t) {
 	if (s == NULL)
 		return NULL;
 	effect_s *e = s->effects;
@@ -875,13 +1039,14 @@ effect_s* entity_material_by_tag(entity_s *s, uint32_t tag) {
 	return NULL;
 }
 
-void apply_gravity(entity_s *s) {
-	if (effect_by_type(s->effects, EF_TRACER) != NULL)
+void apply_gravity(ent_ptr sp) {
+	if (entity_has_effect(sp, EF_TRACER))
 		return;
+	entity_s *s = ent_aptr(sp);
 	int x, y, z;
 	int cx = 0, cy = 0, cz = 0;
 	int ox, oy, oz;
-	if (entity_coords(s, &x, &y, &z)) {
+	if (entity_coords(ent_sptr(s), &x, &y, &z)) {
 		ox = x;
 		oy = y;
 		oz = z;
@@ -889,13 +1054,13 @@ void apply_gravity(entity_s *s) {
 		coord_normalize(&oy, &cy);
 		coord_normalize(&oz, &cz);
 		if (!block_fallable(x, y, z)) {
-			detach_generic_entity(s);
-			entity_set_coords(s, x, y, z - 1);
+			detach_generic_entity(ent_sptr(s));
+			entity_set_coords(ent_sptr(s), x, y, z - 1);
 			if (effect_by_type(s->effects, EF_FALLING) == NULL) {
 				effect_s *new_ef = alloc_effect(EF_FALLING);
 				effect_prepend(s, new_ef);
 			}
-			attach_generic_entity(s);
+			attach_generic_entity(ent_sptr(s));
 			effect_s *ef = effect_by_type(s->effects, EF_BLOCK_MOVE);
 			if (ef != NULL) {
 				effect_unlink(s, ef);
@@ -907,7 +1072,7 @@ void apply_gravity(entity_s *s) {
 				effect_s *new_ef = alloc_effect(EF_S_BUMP);
 				effect_s_bump_data *d = (void*)new_ef->data;
 				/* TODO bump into what */
-				d->ent = NULL;
+				d->ent = ENT_NULL;
 				d->force = 1;
 				effect_prepend(s, new_ef);
 				effect_unlink(s, ef);
@@ -917,7 +1082,10 @@ void apply_gravity(entity_s *s) {
 	}
 }
 
-void apply_block_move(entity_s *s) {
+void apply_block_move(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ef_stats = effect_by_type(s->effects, EF_STATS);
 	int speed = 64;
 	if (ef_stats != NULL) {
@@ -929,10 +1097,10 @@ void apply_block_move(entity_s *s) {
 		effect_s *ef_crea = effect_by_type(s->effects, EF_PH_ITEM);
 		if (ef_crea != NULL) {
 			effect_ph_item_data *ef_crea_d = (void*)ef_crea->data;
-			if (ef_crea_d->parent != NULL && ef_crea_d->parent_type == PARENT_REF_PLACE) {
-				lift_entity(s);
+			if (ef_crea_d->parent != ENT_NULL && ef_crea_d->parent_type == PARENT_REF_PLACE) {
+				lift_entity(ent_sptr(s));
 			}
-			if (ef_crea_d->parent != NULL) {
+			if (ef_crea_d->parent != ENT_NULL) {
 				goto CANT_MOVE;
 			}
 			if (effect_by_type(s->effects, EF_TRACER) != NULL)
@@ -959,22 +1127,22 @@ void apply_block_move(entity_s *s) {
 				sector_s *move_sector = sector_get_sector(g_sectors, cx, cy, cz);
 				if (move_sector != NULL) {
 					if (!sector_get_block_blocked_movement(move_sector, x, y, z)) {
-						detach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+						detach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 						ef_crea_d->x = ox;
 						ef_crea_d->y = oy;
 						ef_crea_d->z = oz;
-						attach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+						attach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 					} else if (sector_get_block_slope(move_sector, x, y, z)) {
 						z ++;
 						oz ++;
 						coord_normalize(&z, &cz);
 						move_sector = sector_get_sector(g_sectors, cx, cy, cz);
 						if (!sector_get_block_blocked_movement(move_sector, x, y, z)) {
-							detach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+							detach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 							ef_crea_d->x = ox;
 							ef_crea_d->y = oy;
 							ef_crea_d->z = oz;
-							attach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+							attach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 						}
 					}
 				}
@@ -989,7 +1157,10 @@ CANT_MOVE:
 	}
 }
 
-void apply_stair_move(entity_s *s) {
+void apply_stair_move(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ef_stats = effect_by_type(s->effects, EF_STATS);
 	int speed = 64;
 	if (ef_stats != NULL) {
@@ -1040,11 +1211,11 @@ void apply_stair_move(entity_s *s) {
 							tx, ty, tz
 						)
 					) {
-						detach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+						detach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 						ef_crea_d->x = ox;
 						ef_crea_d->y = oy;
 						ef_crea_d->z = oz;
-						attach_entity(s, ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
+						attach_entity(ent_sptr(s), ef_crea_d->x, ef_crea_d->y, ef_crea_d->z);
 					}
 				}
 				effect_unlink(s, ef_move);
@@ -1057,7 +1228,10 @@ void apply_stair_move(entity_s *s) {
 	}
 }
 
-void apply_tracer(entity_s *s) {
+void apply_tracer(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ph = effect_by_type(s->effects, EF_PH_ITEM);
 	if (ph == NULL) {
 		return;
@@ -1068,7 +1242,7 @@ void apply_tracer(entity_s *s) {
 	}
 	effect_ph_item_data *ph_d = (void*)ph->data;
 	effect_tracer_data *tracer_d = (void*)tracer->data;
-	detach_generic_entity(s);
+	detach_generic_entity(sp);
 	for (int i = 0; i < tracer_d->speed; i ++) {
 		int nx = ph_d->x;
 		int ny = ph_d->y;
@@ -1110,7 +1284,7 @@ void apply_tracer(entity_s *s) {
 		if (sect == NULL || sector_get_block_blocked_movement(sect, nxe, nye, nze)) {
 			effect_s *ef_bump = alloc_effect(EF_S_BUMP);
 			effect_s_bump_data *d = (void*)ef_bump->data;
-			d->ent = NULL;
+			d->ent = ENT_NULL;
 			d->force = tracer_d->speed;
 			effect_prepend(s, ef_bump);
 			break;
@@ -1125,7 +1299,7 @@ void apply_tracer(entity_s *s) {
 				/* ph_d->z = old_z; */
 				effect_s *ef_bump = alloc_effect(EF_S_BUMP);
 				effect_s_bump_data *d = (void*)ef_bump->data;
-				d->ent = NULL;
+				d->ent = ENT_NULL;
 				d->force = tracer_d->speed;
 				effect_prepend(s, ef_bump);
 				break;
@@ -1134,8 +1308,8 @@ void apply_tracer(entity_s *s) {
 		ph_d->x = nx;
 		ph_d->y = ny;
 		ph_d->z = nz;
-		entity_s *w = tracer_check_bump(s, nx, ny, nz);
-		if (w != NULL) {
+		ent_ptr w = tracer_check_bump(sp, nx, ny, nz);
+		if (w != ENT_NULL) {
 			effect_s *ef_bump = alloc_effect(EF_S_BUMP);
 			effect_s_bump_data *d = (void*)ef_bump->data;
 			d->ent = w;
@@ -1144,70 +1318,91 @@ void apply_tracer(entity_s *s) {
 			break;
 		}
 	}
-	attach_generic_entity(s);
+	attach_generic_entity(sp);
 	effect_unlink(s, tracer);
 	free_effect(tracer);
 }
 
-void apply_movement(entity_s *s) {
+void apply_movement(ent_ptr s) {
 	apply_block_move(s);
 	apply_stair_move(s);
 	apply_tracer(s);
 }
 
-int attack_type_possible(entity_s *s, entity_s *used_limb, attack_type type, uint32_t used_tag) {
-	if (entity_limb_by_entity(s, used_limb) == NULL)
+int attack_type_possible(ent_ptr sp, uint32_t limb_tag, attack_type type, uint32_t used_tag) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
 		return 0;
+	effect_s *limb_slot = entity_limb_by_tag(s, limb_tag);
+	if (limb_slot == NULL)
+		return 0;
+	effect_limb_slot_data *limb_slot_d = (void*)limb_slot->data;
+	ent_ptr used_limb = limb_slot_d->item;
 	switch (type) {
 	case ATK_HAND_PUNCH:
-		return effect_by_type(used_limb->effects, EF_LIMB_HAND) != NULL;
+		return entity_has_effect(used_limb, EF_LIMB_HAND);
 	case ATK_KICK:
-		return effect_by_type(used_limb->effects, EF_LIMB_LEG) != NULL;
+		return entity_has_effect(used_limb, EF_LIMB_LEG);
 	case ATK_SWING:
 	case ATK_THRUST: {
-		effect_s *e = effect_by_type(used_limb->effects, EF_LIMB_HAND);
+		entity_s *used_limb_p = ent_aptr(used_limb);
+		if (used_limb_p == NULL)
+			return 0;
+		effect_s *e = effect_by_type(used_limb_p->effects, EF_LIMB_HAND);
 		if (e == NULL)
 			return 0;
 		effect_limb_hand_data *d = (void*)e->data;
 		return
-			d->item != NULL &&
-			entity_material_by_tag(d->item, used_tag) != NULL;
+			d->item != ENT_NULL &&
+			entity_material_by_tag(ent_aptr(d->item), used_tag) != NULL;
 	} break;
 	default:
 		return 0;
 	}
 }
 
-entity_s* attack_used_tool(entity_s *s, entity_s *used_limb, attack_type type) {
-	if (entity_limb_by_entity(s, used_limb) == NULL)
-		return 0;
+ent_ptr attack_used_tool(ent_ptr sp, uint32_t limb_tag, attack_type type) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return ENT_NULL;
+	effect_s *limb_slot = entity_limb_by_tag(s, limb_tag);
+	if (limb_slot == NULL)
+		return ENT_NULL;
+	effect_limb_slot_data *d = (void*)limb_slot->data;
+	entity_s *used_limb = ent_aptr(d->item);
+	if (used_limb == NULL)
+		return ENT_NULL;
 	switch (type) {
 	case ATK_HAND_PUNCH:
 	case ATK_KICK:
-		return used_limb;
+		return ent_sptr(used_limb);
 	case ATK_SWING:
 	case ATK_THRUST: {
 		effect_s *e = effect_by_type(used_limb->effects, EF_LIMB_HAND);
 		if (e == NULL)
-			return NULL;
+			return ENT_NULL;
 		effect_limb_hand_data *d = (void*)e->data;
 		return d->item;
 	} break;
 	default:
-		return NULL;
+		return ENT_NULL;
 	}
 }
 
-void apply_attack(entity_s *s) {
+void apply_attack(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *e = effect_by_type(s->effects, EF_ATTACK);
-	if (e == NULL) return;
+	if (e == NULL)
+		return;
 	effect_attack_data *data = (void*)e->data;
-	if (!attack_type_possible(s, data->used_limb, data->type, data->weapon_mat)) {
+	if (!attack_type_possible(sp, data->limb_tag, data->type, data->weapon_mat)) {
 		effect_unlink(s, e);
 		free_effect(e);
 		return;
 	}
-	entity_s *used_tool = attack_used_tool(s, data->used_limb, data->type);
+	entity_s *used_tool = ent_aptr(attack_used_tool(sp, data->limb_tag, data->type));
 	effect_s *mat = entity_material_by_tag(used_tool, data->weapon_mat);
 	if (mat == NULL) {
 		effect_unlink(s, e);
@@ -1220,64 +1415,65 @@ void apply_attack(entity_s *s) {
 		data->delay--;
 		return;
 	}
-	if (!entity_reachable(s, entity_limb_by_entity(s, data->used_limb), data->ent)) {
+	if (!entity_reachable(sp, entity_limb_by_tag(s, data->limb_tag), data->ent)) {
 		effect_unlink(s, e);
 		free_effect(e);
 		return;
 	}
-	if (data->ent != NULL) {
-		effect_s *new_eff = alloc_effect(EF_S_DMG);
-		effect_s_dmg_data *new_data = (void*)new_eff->data;
+	if (data->ent != ENT_NULL) {
 		//entity_damage_calc(data->type, &new_data->type, &new_data->val);
+		damage_type type;
+		int val;
 		if (mat_d->prop & MATP_SHARP) {
-			new_data->type = DMGT_CUT;
-			new_data->val = 2;
+			type = DMGT_CUT;
+			val = 2;
 		} else {
-			new_data->type = DMGT_BLUNT;
-			new_data->val = 1;
+			type = DMGT_BLUNT;
+			val = 1;
 		}
-		effect_prepend(data->ent, new_eff);
+		dmg_deal(data->ent, type, val);
 	}
 	effect_unlink(s, e);
 	free_effect(e);
 }
 
-void liquid_deduplicate(entity_s *s) {
+void liquid_deduplicate(ent_ptr sp) {
 	/*
 	 * Works for both top-level and child-level liquids
 	 * Deduplicates liquid objects, only checking for the
 	 * type of liquid.
 	 */
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
 	if (ph_item == NULL)
 		return;
 	effect_ph_item_data *item_d = (void*)ph_item->data;
-	entity_l_s *layer_l = NULL;
-	if (item_d->parent != NULL) {
-		layer_l = entity_enlist(item_d->parent);
-	}
+	entity_l_s *layer_l = entity_enlist(ent_aptr(item_d->parent));
 	effect_s *li = effect_by_type(s->effects, EF_PH_LIQUID);
 	if (li == NULL)
 		return;
 	effect_ph_liquid_data *li_d = (void*)li->data;
 	int x, y, z, cx = 0, cy = 0, cz = 0;
-	entity_coords(s, &x, &y, &z);
+	entity_coords(sp, &x, &y, &z);
 	coord_normalize(&x, &cx);
 	coord_normalize(&y, &cy);
 	coord_normalize(&z, &cz);
 	sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
 	entity_l_s *e = layer_l == NULL ? sector_get_block_entities(sec, x, y, z) : layer_l;
 	while (e != NULL) {
-		if (e->ent != s) {
-			effect_s *e_li = effect_by_type(e->ent->effects, EF_PH_LIQUID);
+		entity_s *a_ent = ent_aptr(e->ent);
+		if (e->ent != sp && a_ent != NULL) {
+			effect_s *e_li = effect_by_type(a_ent->effects, EF_PH_LIQUID);
 			if (e_li != NULL) {
 				effect_ph_liquid_data *d = (void*)e_li->data;
 				if (d->type == li_d->type) {
 					li_d->amount += d->amount;
-					effect_unlink(e->ent, e_li);
+					effect_unlink(a_ent, e_li);
 					free_effect(e_li);
 					effect_s *new_eff = alloc_effect(EF_B_NONEXISTENT);
-					effect_prepend(e->ent, new_eff);
+					effect_prepend(a_ent, new_eff);
 				}
 			}
 		}
@@ -1291,23 +1487,26 @@ void liquid_deduplicate(entity_s *s) {
 		entity_l_s_free(layer_l);
 }
 
-void apply_liquid_movement(entity_s *s) {
+void apply_liquid_movement(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
 	if (ph_item == NULL)
 		return;
 	effect_ph_item_data *item_d = (void*)ph_item->data;
-	if (item_d->parent != NULL)
+	if (item_d->parent != ENT_NULL)
 		return;
 	effect_s *li = effect_by_type(s->effects, EF_PH_LIQUID);
 	if (li == NULL)
 		return;
 	effect_ph_liquid_data *li_d = (void*)li->data;
 	int x, y, z;
-	entity_coords(s, &x, &y, &z);
+	entity_coords(sp, &x, &y, &z);
 	if (!block_fallable(x, y, z)) {
-		detach_generic_entity(s);
-		entity_set_coords(s, x, y, z - 1);
-		attach_generic_entity(s);
+		detach_generic_entity(sp);
+		entity_set_coords(sp, x, y, z - 1);
+		attach_generic_entity(sp);
 		return;
 	}
 	if (li_d->amount > G_PUDDLE_MAX + 3) {
@@ -1346,15 +1545,16 @@ void apply_liquid_movement(entity_s *s) {
 					ty++;
 				if (i == 3)
 					ty--;
-				entity_s *dup = entity_copy(s);
-				entity_set_coords(dup, tx, ty, tz);
-				attach_generic_entity(dup);
+				entity_s *dup = entity_copy(sp);
+				ent_ptr sdup = ent_sptr(dup);
+				entity_set_coords(sdup, tx, ty, tz);
+				attach_generic_entity(sdup);
 				effect_s *dup_liq = effect_by_type(dup->effects, EF_PH_LIQUID);
 				if (dup_liq != NULL) {
 					effect_ph_liquid_data *dup_liq_d = (void*)dup_liq->data;
 					dup_liq_d->amount = over / ndirs;
 					amount_lost += over / ndirs;
-					liquid_deduplicate(dup);
+					liquid_deduplicate(sdup);
 				} else {
 					/* something gone really wrong */
 				}
@@ -1364,24 +1564,30 @@ void apply_liquid_movement(entity_s *s) {
 	}
 }
 
-void apply_physics(entity_s *s) {
+void apply_physics(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (effect_by_type(s->effects, EF_NOPHYSICS) == NULL) {
-		apply_movement(s);
+		apply_movement(sp);
 		effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
 		effect_s *ph_liquid = effect_by_type(s->effects, EF_PH_LIQUID);
 		if (ph_item != NULL) {
 			if (ph_liquid != NULL) {
-				apply_liquid_movement(s);
-				liquid_deduplicate(s);
+				apply_liquid_movement(sp);
+				liquid_deduplicate(sp);
 			} else {
-				apply_gravity(s);
+				apply_gravity(sp);
 			}
 		}
 	}
-	apply_attack(s);
+	apply_attack(sp);
 }
 
-void trigger_move(entity_s *s, int x, int y, int z) {
+void trigger_move(ent_ptr sp, int x, int y, int z) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ef = effect_by_type(s->effects, EF_BLOCK_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_BLOCK_MOVE);
@@ -1394,7 +1600,10 @@ void trigger_move(entity_s *s, int x, int y, int z) {
 	ed->z = z;
 }
 
-void trigger_go_up(entity_s *s) {
+void trigger_go_up(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
@@ -1407,7 +1616,10 @@ void trigger_go_up(entity_s *s) {
 	ed->dir = 1;
 }
 
-void trigger_go_down(entity_s *s) {
+void trigger_go_down(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ef = effect_by_type(s->effects, EF_STAIR_MOVE);
 	if (ef == NULL) {
 		ef = alloc_effect(EF_STAIR_MOVE);
@@ -1420,19 +1632,26 @@ void trigger_go_down(entity_s *s) {
 	ed->dir = -1;
 }
 
-void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag) {
+void trigger_grab(ent_ptr sp, effect_s *h, ent_ptr wp, uint32_t tag) {
+	entity_s *s = ent_aptr(sp);
+	entity_s *w = ent_aptr(wp);
+	if (s == NULL || w == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_GRAB);
 	effect_m_grab_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
-	d->ent = w;
+	d->ent = wp;
 	d->mat_tag = tag;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_drop(entity_s *s, effect_s *h) {
+void trigger_drop(ent_ptr sp, effect_s *h) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
@@ -1442,18 +1661,25 @@ void trigger_drop(entity_s *s, effect_s *h) {
 	effect_prepend(s, new_eff);
 }
 
-void trigger_put(entity_s *s, effect_s *h, entity_s *w) {
+void trigger_put(ent_ptr sp, effect_s *h, ent_ptr wp) {
+	entity_s *s = ent_aptr(sp);
+	entity_s *w = ent_aptr(wp);
+	if (s == NULL || w == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_PUT);
 	effect_m_put_data *d = (void*)new_eff->data;
 	d->eff_tag = ds->tag;
-	d->where = w;
+	d->where = wp;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
+void trigger_throw(ent_ptr sp, effect_s *h, int x, int y, int z, int speed) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *ds = (void*)h->data;
@@ -1467,31 +1693,40 @@ void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 	d->speed = speed;
 }
 
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *used_limb, uint32_t weapon_mat) {
+void trigger_attack(ent_ptr sp, ent_ptr ep, attack_type type, uint32_t limb_tag, uint32_t weapon_mat) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (effect_by_type(s->effects, EF_ATTACK) != NULL)
 		return;
 	effect_s *new_eff = alloc_effect(EF_ATTACK);
 	effect_attack_data *d = (void*)new_eff->data;
-	d->ent = e;
+	d->ent = ep;
 	d->delay = 1;
 	d->type = type;
-	d->used_limb = used_limb;
+	d->limb_tag = limb_tag;
 	d->weapon_mat = weapon_mat;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_fill_cont(entity_s *s, effect_s *h, entity_s *t) {
+void trigger_fill_cont(ent_ptr sp, effect_s *h, ent_ptr tp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *dh = (void*)h->data;
 	effect_s *new_eff = alloc_effect(EF_M_FILL_CONT);
 	effect_m_fill_cont_data *d = (void*)new_eff->data;
 	d->hand_tag = dh->tag;
-	d->target = t;
+	d->target = tp;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_empty_cont(entity_s *s, effect_s *h) {
+void trigger_empty_cont(ent_ptr sp, effect_s *h) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *dh = (void*)h->data;
@@ -1502,7 +1737,10 @@ void trigger_empty_cont(entity_s *s, effect_s *h) {
 }
 
 
-void trigger_press_button(entity_s *s, effect_s *h, entity_s *t, effect_s *w) {
+void trigger_press_button(ent_ptr sp, effect_s *h, ent_ptr tp, effect_s *w) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT || w->type != EF_MATERIAL)
 		return;
 	effect_limb_slot_data *dh = (void*)h->data;
@@ -1510,12 +1748,15 @@ void trigger_press_button(entity_s *s, effect_s *h, entity_s *t, effect_s *w) {
 	effect_s *new_eff = alloc_effect(EF_M_PRESS_BUTTON);
 	effect_m_press_button_data *d = (void*)new_eff->data;
 	d->hand_tag = dh->tag;
-	d->target = t;
+	d->target = tp;
 	d->mat_tag = dw->tag;
 	effect_prepend(s, new_eff);
 }
 
-void trigger_open_door(entity_s *s, effect_s *h, entity_s *t, int dir) {
+void trigger_open_door(ent_ptr sp, effect_s *h, ent_ptr tp, int dir) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *dh = (void*)h->data;
@@ -1523,112 +1764,107 @@ void trigger_open_door(entity_s *s, effect_s *h, entity_s *t, int dir) {
 	effect_m_open_door_data *d = (void*)new_eff->data;
 	d->dir = dir;
 	d->hand_tag = dh->tag;
-	d->target = t;
+	d->target = tp;
 	effect_prepend(s, new_eff);
 }
 
-void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag) {
+void hand_grab(ent_ptr ent, effect_s *hand, ent_ptr item, uint32_t tag) {
 	if (hand->type == EF_LIMB_SLOT) {
 		effect_limb_slot_data *hand_data = (void*)hand->data;
 		if (item == hand_data->item || item == ent)
 			return;
-		effect_s *ef_hand = effect_by_type(hand_data->item->effects, EF_LIMB_HAND);
-		effect_s *ef_ph = effect_by_type(item->effects, EF_PH_ITEM);
-		if (ef_hand != NULL && ef_ph != NULL && entity_reachable(ent, hand, item)) {
-			effect_ph_item_data *ph_data = (void*)ef_ph->data;
-			effect_limb_hand_data *lhand_data = (void*)ef_hand->data;
-			effect_s *mat = entity_material_by_tag(item, tag);
+		effect_limb_hand_data lhand_data;
+		effect_ph_item_data ph_data;
+		if (
+			entity_load_effect(hand_data->item, EF_LIMB_HAND, &lhand_data) &&
+			entity_load_effect(item, EF_PH_ITEM, &ph_data) &&
+			entity_reachable(ent, hand, item)
+		) {
+			effect_s *mat = entity_material_by_tag(ent_aptr(item), tag);
 			if (
-				lhand_data->item == NULL &&
-				(ph_data->parent == NULL || ph_data->parent_type == PARENT_REF_PLACE) &&
+				lhand_data.item == ENT_NULL &&
+				(ph_data.parent == ENT_NULL || ph_data.parent_type == PARENT_REF_PLACE) &&
 				mat != NULL
 			) {
 				unparent_entity(item);
 				detach_generic_entity(item);
-				ph_data->parent = hand_data->item;
-				ph_data->parent_type = PARENT_REF_HELD;
-				lhand_data->item = item;
-				lhand_data->grab_type = tag;
+				ph_data.parent = hand_data->item;
+				ph_data.parent_type = PARENT_REF_HELD;
+				lhand_data.item = item;
+				lhand_data.grab_type = tag;
+				entity_store_effect(hand_data->item, EF_LIMB_HAND, &lhand_data);
+				entity_store_effect(item, EF_PH_ITEM, &ph_data);
 			}
 		}
 	}
 }
 
-void hand_drop(entity_s *ent, effect_s *hand) {
-	if (hand->type == EF_LIMB_SLOT) {
-		effect_limb_slot_data *slot_data = (void*)hand->data;
-		if (slot_data->item != NULL) {
-			effect_s *ef_hand = effect_by_type(slot_data->item->effects, EF_LIMB_HAND);
-			if (ef_hand != NULL) {
-				effect_limb_hand_data *hand_data = (void*)ef_hand->data;
-				if (hand_data->item != NULL) {
-					effect_s *ph_item = effect_by_type(hand_data->item->effects, EF_PH_ITEM);
-					if (ph_item != NULL) {
-						effect_ph_item_data *item_data = (void*)ph_item->data;
-						int x, y, z;
-						entity_coords(ent, &x, &y, &z);
-						entity_set_coords(hand_data->item, x, y, z);
-						item_data->parent = NULL;
-						attach_generic_entity(hand_data->item);
-					}
-					if (effect_by_type(hand_data->item->effects, EF_FALLING) == NULL) {
-						effect_s *ef_fall = alloc_effect(EF_FALLING);
-						effect_prepend(hand_data->item, ef_fall);
-					}
-					hand_data->item = NULL;
-				}
-			}
-		}
-	}
-}
-
-void hand_put(entity_s *ent, effect_s *hand, entity_s *w) {
-	if (hand->type == EF_LIMB_SLOT) {
-		effect_limb_slot_data *slot_data = (void*)hand->data;
-		if (slot_data->item != NULL) {
-			effect_s *ef_hand = effect_by_type(slot_data->item->effects, EF_LIMB_HAND);
-			if (ef_hand != NULL) {
-				effect_limb_hand_data *hand_data = (void*)ef_hand->data;
-				if (hand_data->item != NULL) {
-					effect_s *ph_item = effect_by_type(hand_data->item->effects, EF_PH_ITEM);
-					if (effect_by_type(w->effects, EF_TABLE) == NULL || !entity_reachable(ent, hand, w)) {
-						w = NULL;
-					}
-					if (ph_item != NULL && w != NULL) {
-						effect_ph_item_data *item_data = (void*)ph_item->data;
-						int x, y, z;
-						entity_coords(ent, &x, &y, &z);
-						entity_set_coords(hand_data->item, x, y, z);
-						item_data->parent = w;
-						item_data->parent_type = PARENT_REF_PLACE;
-						effect_s *new_eff = alloc_effect(EF_TABLE_ITEM);
-						effect_table_item_data *d = (void*)new_eff->data;
-						d->item = hand_data->item;
-						effect_prepend(w, new_eff);
-						hand_data->item = NULL;
-					}
-				}
-			}
-		}
-	}
-}
-
-void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
-	if (h->type != EF_LIMB_SLOT) {
+void hand_drop(ent_ptr ent, effect_s *hand) {
+	(void)ent;
+	if (hand->type != EF_LIMB_SLOT)
 		return;
+	effect_limb_slot_data *slot_data = (void*)hand->data;
+	if (slot_data->item == ENT_NULL)
+		return;
+	effect_limb_hand_data hand_data;
+	if (!entity_load_effect(slot_data->item, EF_LIMB_HAND, &hand_data))
+		return;
+	if (hand_data.item == ENT_NULL)
+		return;
+	lift_entity(hand_data.item);
+	entity_s *itemp = ent_aptr(hand_data.item);
+	if (itemp != NULL && !entity_has_effect(hand_data.item, EF_FALLING)) {
+		effect_s *ef_fall = alloc_effect(EF_FALLING);
+		effect_prepend(itemp, ef_fall);
 	}
+	hand_data.item = ENT_NULL;
+}
+
+void hand_put(ent_ptr ent, effect_s *hand, ent_ptr wp) {
+	entity_s *w = ent_aptr(wp);
+	if (w == NULL)
+		return;
+	if (hand->type != EF_LIMB_SLOT)
+		return;
+	effect_limb_slot_data *slot_data = (void*)hand->data;
+	if (slot_data->item == ENT_NULL)
+		return;
+	effect_limb_hand_data hand_data;
+	if (!entity_load_effect(slot_data->item, EF_LIMB_HAND, &hand_data))
+		return;
+	if (hand_data.item == ENT_NULL)
+		return;
+	effect_ph_item_data item_data;
+	if (!entity_load_effect(hand_data.item, EF_PH_ITEM, &item_data))
+		return;
+	if (!entity_has_effect(wp, EF_TABLE) || !entity_reachable(ent, hand, wp))
+		return;
+
+	int x, y, z;
+	entity_coords(ent, &x, &y, &z);
+	entity_set_coords(hand_data.item, x, y, z);
+	item_data.parent = wp;
+	item_data.parent_type = PARENT_REF_PLACE;
+	effect_s *new_eff = alloc_effect(EF_TABLE_ITEM);
+	effect_table_item_data *d = (void*)new_eff->data;
+	d->item = hand_data.item;
+	effect_prepend(w, new_eff);
+	entity_store_effect(hand_data.item, EF_PH_ITEM, &item_data);
+	hand_data.item = ENT_NULL;
+	entity_store_effect(slot_data->item, EF_LIMB_HAND, &hand_data);
+}
+
+void hand_throw(ent_ptr s, effect_s *h, int x, int y, int z, int speed) {
+	if (h->type != EF_LIMB_SLOT)
+		return;
 	effect_limb_slot_data *limb_d = (void*)h->data;
-	if (limb_d->item == NULL) {
+	if (limb_d->item == ENT_NULL)
 		return;
-	}
-	effect_s *ef_hand = effect_by_type(limb_d->item->effects, EF_LIMB_HAND);
-	if (ef_hand == NULL) {
+	effect_limb_hand_data hand_d;
+	if (!entity_load_effect(limb_d->item, EF_LIMB_HAND, &hand_d))
 		return;
-	}
-	effect_limb_hand_data *hand_d = (void*)ef_hand->data;
-	if (hand_d->item == NULL) {
+	if (hand_d.item == ENT_NULL)
 		return;
-	}
 	effect_s *ef_tracer = alloc_effect(EF_TRACER);
 	effect_tracer_data *tracer_d = (void*)ef_tracer->data;
 	tracer_d->cur_x = 0;
@@ -1638,32 +1874,38 @@ void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed) {
 	tracer_d->y = y;
 	tracer_d->z = z;
 	tracer_d->speed = speed;
-	effect_prepend(hand_d->item, ef_tracer);
-	effect_s *ph_item = effect_by_type(hand_d->item->effects, EF_PH_ITEM);
-	if (ph_item != NULL) {
-		effect_ph_item_data *item_data = (void*)ph_item->data;
-		int x, y, z;
-		entity_coords(s, &x, &y, &z);
-		entity_set_coords(hand_d->item, x, y, z);
-		item_data->parent = NULL;
-		attach_generic_entity(hand_d->item);
+	entity_s *hi = ent_aptr(hand_d.item);
+	if (hi != NULL) {
+		effect_prepend(hi, ef_tracer);
+		effect_s *ph_item = effect_by_type(hi->effects, EF_PH_ITEM);
+		if (ph_item != NULL) {
+			effect_ph_item_data *item_data = (void*)ph_item->data;
+			int x, y, z;
+			entity_coords(s, &x, &y, &z);
+			entity_set_coords(hand_d.item, x, y, z);
+			item_data->parent = ENT_NULL;
+			attach_generic_entity(hand_d.item);
+		}
 	}
-	hand_d->item = NULL;
+	hand_d.item = ENT_NULL;
+	entity_store_effect(limb_d->item, EF_LIMB_HAND, &hand_d);
 }
 
-void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t) {
+void hand_fill_cont(ent_ptr s, effect_s *h, ent_ptr t) {
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *hd = (void*)h->data;
-	if (hd->item == NULL)
+	entity_s *hitem = ent_aptr(hd->item);
+	if (hitem == NULL)
 		return;
-	effect_s *ef_lhand = effect_by_type(hd->item->effects, EF_LIMB_HAND);
+	effect_s *ef_lhand = effect_by_type(hitem->effects, EF_LIMB_HAND);
 	if (ef_lhand == NULL)
 		return;
 	effect_limb_hand_data *lhd = (void*)ef_lhand->data;
-	if (lhd->item == NULL)
+	entity_s *lhitem = ent_aptr(lhd->item);
+	if (lhitem == NULL)
 		return;
-	effect_s *held_item_cont = effect_by_type(lhd->item->effects, EF_CONTAINER);
+	effect_s *held_item_cont = effect_by_type(lhitem->effects, EF_CONTAINER);
 	if (held_item_cont == NULL)
 		return;
 	effect_container_data *cont_d = (void*)held_item_cont->data;
@@ -1671,7 +1913,10 @@ void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t) {
 		return;
 	if (!entity_reachable(s, h, t))
 		return;
-	effect_s *t_liq = effect_by_type(t->effects, EF_PH_LIQUID);
+	entity_s *ts = ent_aptr(t);
+	if (ts == NULL)
+		return;
+	effect_s *t_liq = effect_by_type(ts->effects, EF_PH_LIQUID);
 	if (t_liq == NULL)
 		return;
 	effect_ph_liquid_data *liq_d = (void*)t_liq->data;
@@ -1682,39 +1927,46 @@ void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t) {
 	container_add_liquid(lhd->item, liq_d->type, 1);
 }
 
-void hand_empty_cont(entity_s *s, effect_s *h) {
+void hand_empty_cont(ent_ptr s, effect_s *h) {
 	(void)s;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *hd = (void*)h->data;
-	if (hd->item == NULL)
+	entity_s *hitem = ent_aptr(hd->item);
+	if (hitem == NULL)
 		return;
-	effect_s *ef_lhand = effect_by_type(hd->item->effects, EF_LIMB_HAND);
+	effect_s *ef_lhand = effect_by_type(hitem->effects, EF_LIMB_HAND);
 	if (ef_lhand == NULL)
 		return;
 	effect_limb_hand_data *lhd = (void*)ef_lhand->data;
-	if (lhd->item == NULL)
+	entity_s *lhitem = ent_aptr(lhd->item);
+	if (lhitem == NULL)
 		return;
-	effect_s *held_item_cont = effect_by_type(lhd->item->effects, EF_CONTAINER);
+	effect_s *held_item_cont = effect_by_type(lhitem->effects, EF_CONTAINER);
 	if (held_item_cont == NULL)
 		return;
-	for (effect_s *c = lhd->item->effects; c != NULL; c = c->next) {
+	for (effect_s *c = lhitem->effects; c != NULL; c = c->next) {
 		if (c->type != EF_CONTAINER_ITEM)
 			continue;
 		effect_container_item_data *d = (void*)c->data;
-		if (d->item != NULL)
+		if (d->item != ENT_NULL)
 			unparent_attach_entity(d->item);
 	}
 }
 
-void hand_press_button(entity_s *s, effect_s *h, entity_s *t, uint32_t mat_tag) {
+void hand_press_button(ent_ptr s, effect_s *h, ent_ptr tp, uint32_t mat_tag) {
+	// TODO implement this for entities stored non-directly
 	(void)s;
+	entity_s *t = ent_aptr(tp);
+	if (t == NULL)
+		return;
 	if (h->type != EF_LIMB_SLOT)
 		return;
 	effect_limb_slot_data *hd = (void*)h->data;
-	if (hd->item == NULL)
+	entity_s *hitem = ent_aptr(hd->item);
+	if (hitem == NULL)
 		return;
-	effect_s *ef_lhand = effect_by_type(hd->item->effects, EF_LIMB_HAND);
+	effect_s *ef_lhand = effect_by_type(hitem->effects, EF_LIMB_HAND);
 	if (ef_lhand == NULL)
 		return;
 	effect_s *mat = entity_material_by_tag(t, mat_tag);
@@ -1740,6 +1992,10 @@ void dump_effect(effect_s *e, FILE *stream) {
 void dump_entity(entity_s *s, FILE *stream) {
 	int ind = entity_get_index(s);
 	fwrite(&ind, sizeof(int), 1, stream);
+	fwrite(&s->common_type, sizeof(int), 1, stream);
+	if (s->common_type == CT_WALL || s->common_type == CT_FLOOR) {
+		fwrite(s->common_data, sizeof(int), 4, stream);
+	}
 	int cnt = entity_num_effects(s) - 1; /* -1 for B_INDEX */
 	fwrite(&cnt, sizeof(int), 1, stream);
 
@@ -1755,7 +2011,7 @@ void dump_entity(entity_s *s, FILE *stream) {
 		entity_l_s *ls = effect_enlist(e);
 		entity_l_s *lsc = ls;
 		while (lsc != NULL) {
-			dump_entity(lsc->ent, stream);
+			dump_entity(ent_aptr(lsc->ent), stream);
 			ls = lsc;
 			lsc = lsc->next;
 			o_free(ls);
@@ -1770,12 +2026,42 @@ void dump_sector(sector_s *s, FILE *stream) {
 			for (int k = 0; k < G_SECTOR_SIZE; k ++) {
 				entity_l_s *e = s->block_entities[i][j][k];
 				while (e != NULL) {
-					dump_entity(e->ent, stream);
+					dump_entity(ent_aptr(e->ent), stream);
 					e = e->next;
 				}
 			}
 		}
 	}
+}
+
+void dump_sector_bslice(sector_s *s, FILE *stream) {
+	fwrite(&s->x, sizeof(int), 1, stream);
+	fwrite(&s->y, sizeof(int), 1, stream);
+	fwrite(&s->z, sizeof(int), 1, stream);
+	int nskip = 0;
+	for (int i = 0; i < G_SECTOR_SIZE; i++) {
+		for (int k = 0; k < G_SECTOR_SIZE; k++) {
+			for (int j = 0; j < G_SECTOR_SIZE; j++) {
+				if (s->block_blocks[i][j][k].type != BLK_EMPTY) {
+					if (nskip != -1) {
+						fwrite(&nskip, sizeof(int), 1, stream);
+					}
+					fwrite(&s->block_blocks[i][j][k].type, sizeof(int), 1, stream);
+					fwrite(&s->block_blocks[i][j][k].dur, sizeof(int), 1, stream);
+					nskip = -1;
+				} else {
+					if (nskip == -1) {
+						int t = -1;
+						fwrite(&t, sizeof(int), 1, stream);
+						nskip = 0;
+					}
+					nskip++;
+				}
+			}
+		}
+	}
+	int t = -1;
+	fwrite(&t, sizeof(int), 1, stream);
 }
 
 void entity_enumerate(entity_s *s, int *ent_id) {
@@ -1787,7 +2073,7 @@ void entity_enumerate(entity_s *s, int *ent_id) {
 			entity_l_s *ls = effect_enlist(ef);
 			entity_l_s *lsc = ls;
 			while (lsc != NULL) {
-				entity_enumerate(lsc->ent, ent_id);
+				entity_enumerate(ent_aptr(lsc->ent), ent_id);
 				ls = lsc;
 				lsc = lsc->next;
 				o_free(ls);
@@ -1797,38 +2083,48 @@ void entity_enumerate(entity_s *s, int *ent_id) {
 	}
 }
 
-void dump_sector_list(sector_s *s, FILE *stream) {
-	sector_s *c = s;
-	int ent_id = 0;
-	while (c != NULL) {
-		for (int i = 0; i < G_SECTOR_SIZE; i ++) {
-			for (int j = 0; j < G_SECTOR_SIZE; j ++) {
-				for (int k = 0; k < G_SECTOR_SIZE; k ++) {
-					entity_l_s *e = c->block_entities[i][j][k];
-					while (e != NULL) {
-						entity_enumerate(e->ent, &ent_id);
-						e = e->next;
-					}
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id) {
+	if (s == NULL)
+		return;
+	for (int i = 0; i < G_SECTOR_SIZE; i ++) {
+		for (int j = 0; j < G_SECTOR_SIZE; j ++) {
+			for (int k = 0; k < G_SECTOR_SIZE; k ++) {
+				entity_l_s *e = s->block_entities[i][j][k];
+				while (e != NULL) {
+					entity_enumerate(ent_aptr(e->ent), ent_id);
+					e = e->next;
 				}
 			}
 		}
-		c = c->snext;
 	}
-	c = s;
-	fwrite(&ent_id, sizeof(int), 1, stream);
-	while (c != NULL) {
-		dump_sector(c, stream);
-		c = c->snext;
-	}
+	++*bslice_id;
+	sector_enumerate_rec(s->ch[0], ent_id, bslice_id);
+	sector_enumerate_rec(s->ch[1], ent_id, bslice_id);
 }
 
-void effect_dump_ph_block(effect_s *e, FILE *stream) {
-	effect_ph_block_data *d = (void*)e->data;
-	fwrite(&d->x, sizeof(int), 1, stream);
-	fwrite(&d->y, sizeof(int), 1, stream);
-	fwrite(&d->z, sizeof(int), 1, stream);
-	unsigned t = d->floor | (d->block_movement << 1) | (d->floor_up << 2) | (d->stair << 3) | (d->slope << 4);
-	fwrite(&t, sizeof(int), 1, stream);
+void sector_dump_rec(sector_s *s, FILE *stream) {
+	if (s == NULL)
+		return;
+	dump_sector(s, stream);
+	sector_dump_rec(s->ch[0], stream);
+	sector_dump_rec(s->ch[1], stream);
+}
+
+void sector_dump_bslice_rec(sector_s *s, FILE *stream) {
+	if (s == NULL)
+		return;
+	dump_sector_bslice(s, stream);
+	sector_dump_bslice_rec(s->ch[0], stream);
+	sector_dump_bslice_rec(s->ch[1], stream);
+}
+
+void dump_sector_list(sector_s *s, FILE *stream) {
+	int ent_id = 0, bslice_id = 0;
+	sector_enumerate_rec(s, &ent_id, &bslice_id);
+	fwrite(&ent_id, sizeof(int), 1, stream);
+	fwrite(&bslice_id, sizeof(int), 1, stream);
+	sector_dump_rec(s, stream);
+	sector_dump_bslice_rec(s, stream);
 }
 
 void unload_entity(entity_s *s) {
@@ -1841,7 +2137,7 @@ void unload_entity(entity_s *s) {
 		entity_l_s *ls = effect_enlist(c);
 		entity_l_s *lsc = ls;
 		while (lsc != NULL) {
-			unload_entity(lsc->ent);
+			unload_entity(ent_aptr(lsc->ent));
 			ls = lsc;
 			lsc = lsc->next;
 			o_free(ls);
@@ -1851,8 +2147,9 @@ void unload_entity(entity_s *s) {
 }
 
 entity_s *load_sector_list(FILE *stream) {
-	int n_ent;
+	int n_ent, n_bslices;
 	fread(&n_ent, sizeof(int), 1, stream);
+	fread(&n_bslices, sizeof(int), 1, stream);
 	entity_s **a_ent = o_malloc(sizeof(entity_s*) * n_ent);
 	entity_s *prev_ent = NULL;
 	for (int i = 0; i < n_ent; i ++) {
@@ -1866,6 +2163,9 @@ entity_s *load_sector_list(FILE *stream) {
 	}
 	for (int i = 0; i < n_ent; i ++) {
 		scan_entity(n_ent, a_ent, stream);
+	}
+	for (int i = 0; i < n_bslices; i++) {
+		scan_bslice(stream);
 	}
 	entity_s *t = a_ent[0];
 	o_free(a_ent);
@@ -1892,6 +2192,10 @@ entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
 		fflush(stderr);
 		return NULL;
 	} else {
+		fread(&a_ent[id]->common_type, sizeof(int), 1, stream);
+		if (a_ent[id]->common_type == CT_WALL || a_ent[id]->common_type == CT_FLOOR) {
+			fread(a_ent[id]->common_data, sizeof(int), 4, stream);
+		}
 		int id_eff;
 		fread(&id_eff, sizeof(int), 1, stream);
 		effect_s *la = a_ent[id]->effects;
@@ -1910,13 +2214,47 @@ entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
 	}
 }
 
+void scan_bslice(FILE *stream) {
+	int co[3];
+	fread(co, sizeof(int), 3, stream);
+	sector_s *sec = sector_get_sector(g_sectors, co[0], co[1], co[2]);
+	if (sec == NULL) {
+		sec = o_alloc_sector();
+		sec->x = co[0];
+		sec->y = co[1];
+		sec->z = co[2];
+		sec->prio = rng_next(g_dice);
+		sec->ch[0] = NULL;
+		sec->ch[1] = NULL;
+		memset(sec->block_entities, 0, sizeof(sec->block_entities));
+		memset(sec->block_blocks, 0, sizeof(sec->block_blocks));
+		g_sectors = sector_insert(g_sectors, sec);
+	}
+	int nskip;
+	int c = 0;
+	while (fread(&nskip, sizeof(int), 1, stream) && nskip != -1) {
+		c += nskip;
+		int block_type, block_dur;
+		while (fread(&block_type, sizeof(int), 1, stream) && block_type != -1) {
+			fread(&block_dur, sizeof(int), 1, stream);
+			int
+				a = c / G_SECTOR_SIZE / G_SECTOR_SIZE,
+				b = c % G_SECTOR_SIZE,
+				c_ = c / G_SECTOR_SIZE % G_SECTOR_SIZE;
+			sec->block_blocks[a][b][c_].type = block_type;
+			sec->block_blocks[a][b][c_].dur = block_dur;
+			c++;
+		}
+	}
+}
+
 void unload_sector(sector_s *s) {
 	for (int i = 0; i < G_SECTOR_SIZE; i ++) {
 		for (int j = 0; j < G_SECTOR_SIZE; j ++) {
 			for (int k = 0; k < G_SECTOR_SIZE; k ++) {
 				entity_l_s *c = s->block_entities[i][j][k];
 				while (c != NULL) {
-					unload_entity(c->ent);
+					unload_entity(ent_aptr(c->ent));
 					c = c->next;
 				}
 				entity_l_s_free(s->block_entities[i][j][k]);
@@ -1926,26 +2264,10 @@ void unload_sector(sector_s *s) {
 	}
 }
 
-void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {
-	(void)n_ent;
-	(void)a_ent;
-	effect_ph_block_data *d = (void*)e->data;
-	fread(&d->x, sizeof(int), 1, stream);
-	fread(&d->y, sizeof(int), 1, stream);
-	fread(&d->z, sizeof(int), 1, stream);
-	unsigned t;
-	fread(&t, sizeof(unsigned), 1, stream);
-	d->floor = t & 1;
-	d->block_movement = (t >> 1) & 1;
-	d->floor_up = (t >> 2) & 1;
-	d->stair = (t >> 3) & 1;
-	d->slope = (t >> 4) & 1;
-}
-
 int effect_rem_ph_item(entity_s *s, effect_s *e) {
 	effect_ph_item_data *d = (void*)e->data;
-	while (d->parent != NULL && effect_by_type(d->parent->effects, EF_B_NONEXISTENT) != NULL) {
-		lift_entity(s);
+	while (d->parent != ENT_NULL && entity_has_effect(d->parent, EF_B_NONEXISTENT)) {
+		lift_entity(ent_sptr(s));
 	}
 	return 0;
 }
@@ -1985,7 +2307,7 @@ int entity_num_effects(entity_s *s) {
 entity_l_s* effect_enlist(effect_s *s) {
 	if (s->type == EF_LIMB_SLOT) {
 		effect_limb_slot_data *d = (void*)s->data;
-		if (d->item != NULL) {
+		if (d->item != ENT_NULL) {
 			entity_l_s *r = o_malloc(sizeof(entity_l_s));
 			r->prev = NULL;
 			r->next = NULL;
@@ -1996,7 +2318,7 @@ entity_l_s* effect_enlist(effect_s *s) {
 	}
 	if (s->type == EF_LIMB_HAND) {
 		effect_limb_hand_data *d = (void*)s->data;
-		if (d->item != NULL) {
+		if (d->item != ENT_NULL) {
 			entity_l_s *r = o_malloc(sizeof(entity_l_s));
 			r->prev = NULL;
 			r->next = NULL;
@@ -2007,7 +2329,7 @@ entity_l_s* effect_enlist(effect_s *s) {
 	}
 	if (s->type == EF_TABLE_ITEM) {
 		effect_table_item_data *d = (void*)s->data;
-		if (d->item != NULL) {
+		if (d->item != ENT_NULL) {
 			entity_l_s *r = o_malloc(sizeof(entity_l_s));
 			r->prev = NULL;
 			r->next = NULL;
@@ -2018,7 +2340,7 @@ entity_l_s* effect_enlist(effect_s *s) {
 	}
 	if (s->type == EF_CONTAINER_ITEM) {
 		effect_container_item_data *d = (void*)s->data;
-		if (d->item != NULL) {
+		if (d->item != ENT_NULL) {
 			entity_l_s *r = o_malloc(sizeof(entity_l_s));
 			r->prev = NULL;
 			r->next = NULL;
@@ -2031,6 +2353,8 @@ entity_l_s* effect_enlist(effect_s *s) {
 }
 
 entity_l_s* entity_enlist(entity_s *s) {
+	if (s == NULL)
+		return NULL;
 	effect_s *c = s->effects;
 	entity_l_s *x = NULL;
 	while (c != NULL) {
@@ -2054,24 +2378,36 @@ entity_l_s* entity_enlist(entity_s *s) {
 
 entity_l_s* sector_get_block_entities_indirect(sector_s *s, int x, int y, int z) {
 	entity_l_s *el_orig = sector_get_block_entities(s, x, y, z);
-	if (el_orig == NULL)
-		return NULL;
-	entity_l_s *el = entity_l_s_copy(el_orig);
-	entity_l_s *t = el;
-	while (t->next != NULL)
-		t = t->next;
-	entity_l_s *h = t;
-	while (t != NULL) {
-		entity_l_s *a = entity_enlist(t->ent);
-		while (a != NULL) {
-			if (h != NULL) {
-				h->next = a;
+	entity_l_s *el;
+	if (el_orig == NULL) {
+		el = NULL;
+	} else {
+		el = entity_l_s_copy(el_orig);
+		entity_l_s *t = el;
+		while (t->next != NULL)
+			t = t->next;
+		entity_l_s *h = t;
+		while (t != NULL) {
+			entity_l_s *a = entity_enlist(ent_aptr(t->ent));
+			while (a != NULL) {
+				if (h != NULL) {
+					h->next = a;
+				}
+				a->prev = h;
+				h = a;
+				a = a->next;
 			}
-			a->prev = h;
-			h = a;
-			a = a->next;
+			t = t->prev;
 		}
-		t = t->prev;
+	}
+	if (s->block_blocks[x][y][z].type != BLK_EMPTY) {
+		entity_l_s *a = o_malloc(sizeof(entity_l_s));
+		a->ent = ent_cptr(s, x, y, z);
+		a->prev = NULL;
+		a->next = el;
+		if (el != NULL)
+			el->prev = a;
+		el = a;
 	}
 	return el;
 }
@@ -2104,49 +2440,50 @@ void entity_l_s_free(entity_l_s *s) {
 	}
 }
 
-int entity_reachable(entity_s *s, effect_s *limb, entity_s *e) {
+int entity_reachable(ent_ptr s, effect_s *limb, ent_ptr e) {
 	if (limb->type != EF_LIMB_SLOT) {
 		return 0;
 	}
 	effect_limb_slot_data *limb_data = (void*)limb->data;
-	if (limb_data->item == NULL) {
+	if (limb_data->item == ENT_NULL) {
 		return 0;
 	}
 	int xs, ys, zs;
 	int xe, ye, ze;
-	entity_coords(s, &xs, &ys, &zs);
-	entity_coords(e, &xe, &ye, &ze);
+	if (!entity_coords(s, &xs, &ys, &zs))
+		return 0;
+	if (!entity_coords(e, &xe, &ye, &ze))
+		return 0;
 	if (abs(xs - xe) > 1 || abs(ys - ye) > 1 || abs(zs - ze) > 1) {
 		return 0;
 	}
 	if (xs == xe && ys == ye && zs == ze) {
 		return 1;
 	}
-	if (effect_by_type(e->effects, EF_PH_BLOCK) != NULL) {
+	if (entity_has_effect(e, EF_PH_BLOCK)) {
 		return 1;
 	}
 	/* TODO high/low limb types */
 	return 0;
 }
 
-entity_s* tracer_check_bump(entity_s *s, int x, int y, int z) {
+ent_ptr tracer_check_bump(ent_ptr s, int x, int y, int z) {
 	int cx = 0, cy = 0, cz = 0, sx = x, sy = y, sz = z;
 	int ex, ey, ez;
 	if (!entity_coords(s, &ex, &ey, &ez)) {
-		return NULL;
+		return ENT_NULL;
 	}
 	coord_normalize(&sx, &cx);
 	coord_normalize(&sy, &cy);
 	coord_normalize(&sz, &cz);
 	sector_s *sect = sector_get_sector(g_sectors, cx, cy, cz);
 	if (sect == NULL)
-		return NULL;
+		return ENT_NULL;
 	entity_l_s *el = sector_get_block_entities(sect, sx, sy, sz);
 	entity_l_s *cur;
 	int total_hit_val = 0;
 	for (cur = el; cur != NULL; cur = cur->next) {
-		effect_s *ef_ph = effect_by_type(cur->ent->effects, EF_PH_ITEM);
-		if (ef_ph != NULL) {
+		if (entity_has_effect(cur->ent, EF_PH_ITEM)) {
 			total_hit_val += entity_size(cur->ent);
 		}
 	}
@@ -2156,44 +2493,44 @@ entity_s* tracer_check_bump(entity_s *s, int x, int y, int z) {
 	// TODO rng_next_range
 	int random_val = rng_next(g_dice) % mx;
 	if (random_val > total_hit_val)
-		return NULL;
+		return ENT_NULL;
 	int cur_hit_val = 0;
 	for (cur = el; cur != NULL; cur = cur->next) {
-		effect_s *ef_ph = effect_by_type(cur->ent->effects, EF_PH_ITEM);
-		if (ef_ph != NULL) {
+		if (entity_has_effect(cur->ent, EF_PH_ITEM)) {
 			cur_hit_val += entity_size(cur->ent);
 			if (cur_hit_val >= random_val)
 				return cur->ent;
 		}
 	}
-	return NULL;
+	return ENT_NULL;
 }
 
-void unparent_entity(entity_s *s) {
+void unparent_entity(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ph = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph == NULL) {
+	if (ph == NULL)
 		return;
-	}
 	effect_ph_item_data *d = (void*)ph->data;
-	if (d->parent == NULL) {
+	if (d->parent == ENT_NULL)
 		return;
-	}
 	switch (d->parent_type) {
 	case PARENT_REF_HELD: {
 		int x, y, z;
-		entity_s *p = d->parent;
+		entity_s *p = ent_aptr(d->parent);
 		effect_s *t = p->effects;
-		if (entity_coords(s, &x, &y, &z)) {
-			d->parent = NULL;
-			entity_set_coords(s, x, y, z);
+		if (entity_coords(sp, &x, &y, &z)) {
+			d->parent = ENT_NULL;
+			entity_set_coords(sp, x, y, z);
 		} else {
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_LIMB_HAND) {
 				effect_limb_hand_data *td = (void*)t->data;
-				if (td->item == s) {
-					td->item = NULL;
+				if (td->item == sp) {
+					td->item = ENT_NULL;
 					break;
 				}
 			}
@@ -2202,18 +2539,18 @@ void unparent_entity(entity_s *s) {
 	} break;
 	case PARENT_REF_PLACE: {
 		int x, y, z;
-		entity_s *p = d->parent;
+		entity_s *p = ent_aptr(d->parent);
 		effect_s *t = p->effects;
-		if (entity_coords(s, &x, &y, &z)) {
-			d->parent = NULL;
-			entity_set_coords(s, x, y, z);
+		if (entity_coords(sp, &x, &y, &z)) {
+			d->parent = ENT_NULL;
+			entity_set_coords(sp, x, y, z);
 		} else {
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_TABLE_ITEM) {
 				effect_table_item_data *td = (void*)t->data;
-				if (td->item == s) {
+				if (td->item == sp) {
 					effect_unlink(p, t);
 					free_effect(t);
 					break;
@@ -2224,18 +2561,18 @@ void unparent_entity(entity_s *s) {
 	} break;
 	case PARENT_REF_CONT: {
 		int x, y, z;
-		entity_s *p = d->parent;
+		entity_s *p = ent_aptr(d->parent);
 		effect_s *t = p->effects;
-		if (entity_coords(s, &x, &y, &z)) {
-			d->parent = NULL;
-			entity_set_coords(s, x, y, z);
+		if (entity_coords(sp, &x, &y, &z)) {
+			d->parent = ENT_NULL;
+			entity_set_coords(sp, x, y, z);
 		} else {
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_CONTAINER_ITEM) {
 				effect_table_item_data *td = (void*)t->data;
-				if (td->item == s) {
+				if (td->item == sp) {
 					effect_unlink(p, t);
 					free_effect(t);
 					break;
@@ -2246,19 +2583,19 @@ void unparent_entity(entity_s *s) {
 	} break;
 	case PARENT_REF_LIMB: {
 		int x, y, z;
-		entity_s *p = d->parent;
+		entity_s *p = ent_aptr(d->parent);
 		effect_s *t = p->effects;
-		if (entity_coords(s, &x, &y, &z)) {
-			d->parent = NULL;
-			entity_set_coords(s, x, y, z);
+		if (entity_coords(sp, &x, &y, &z)) {
+			d->parent = ENT_NULL;
+			entity_set_coords(sp, x, y, z);
 		} else {
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 		}
 		while (t != NULL) {
 			if (t->type == EF_LIMB_SLOT) {
 				effect_limb_slot_data *td = (void*)t->data;
-				if (td->item == s) {
-					td->item = NULL;
+				if (td->item == sp) {
+					td->item = ENT_NULL;
 					break;
 				}
 			}
@@ -2268,21 +2605,25 @@ void unparent_entity(entity_s *s) {
 	}
 }
 
-void unparent_attach_entity(entity_s *s) {
+void unparent_attach_entity(ent_ptr s) {
 	unparent_entity(s);
 	attach_generic_entity(s);
 }
 
-void lift_entity(entity_s *s) {
+void lift_entity(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *ph = effect_by_type(s->effects, EF_PH_ITEM);
 	if (ph == NULL)
 		return;
 	effect_ph_item_data *d = (void*)ph->data;
-	if (d->parent == NULL)
+	if (d->parent == ENT_NULL)
 		return;
-	entity_s *p = d->parent;
+	// TODO redo this for non-aptr parent (if non-aptr parents are allowed at all)
+	entity_s *p = ent_aptr(d->parent);
 	parent_ref_type pt = d->parent_type;
-	unparent_entity(s);
+	unparent_entity(sp);
 	do {
 		effect_s *pph = effect_by_type(p->effects, EF_PH_ITEM);
 		if (pph == NULL) {
@@ -2290,11 +2631,11 @@ void lift_entity(entity_s *s) {
 			break;
 		}
 		effect_ph_item_data *pd = (void*)pph->data;
-		p = pd->parent;
+		p = ent_aptr(pd->parent);
 		pt = pd->parent_type;
 	} while (p != NULL && (pt == PARENT_REF_HELD || pt == PARENT_REF_LIMB));
 	if (p == NULL) {
-		attach_generic_entity(s);
+		attach_generic_entity(sp);
 		return;
 	}
 	switch (pt) {
@@ -2303,47 +2644,45 @@ void lift_entity(entity_s *s) {
 	case PARENT_REF_PLACE: {
 		effect_s *new_ef = alloc_effect(EF_TABLE_ITEM);
 		effect_table_item_data *d = (void*)new_ef->data;
-		d->item = s;
+		d->item = sp;
 		effect_prepend(p, new_ef);
 	} break;
 	case PARENT_REF_CONT: {
 		effect_s *new_ef = alloc_effect(EF_CONTAINER_ITEM);
 		effect_container_item_data *d = (void*)new_ef->data;
-		d->item = s;
+		d->item = sp;
 		effect_prepend(p, new_ef);
 	} break;
 	}
 }
 
-int entity_weight(entity_s *s) {
-	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph_item == NULL)
+int entity_weight(ent_ptr s) {
+	effect_ph_item_data d;
+	if (!entity_load_effect(s, EF_PH_ITEM, &d))
 		return 0;
-	effect_ph_item_data *d = (void*)ph_item->data;
-	effect_s *ph_liq = effect_by_type(s->effects, EF_PH_LIQUID);
-	if (ph_liq != NULL) {
-		effect_ph_liquid_data *dl = (void*)ph_liq->data;
-		return dl->amount;
-	}
-	return d->weight;
+	effect_ph_liquid_data dl;
+	if (entity_load_effect(s, EF_PH_LIQUID, &dl))
+		return dl.amount;
+	return d.weight;
 }
 
-int entity_size(entity_s *s) {
-	effect_s *ph_item = effect_by_type(s->effects, EF_PH_ITEM);
-	if (ph_item == NULL)
+int entity_size(ent_ptr s) {
+	effect_ph_item_data d;
+	if (!entity_load_effect(s, EF_PH_ITEM, &d))
 		return 0;
-	// effect_ph_item_data *d = (void*)ph_item->data;
-	effect_s *ph_liq = effect_by_type(s->effects, EF_PH_LIQUID);
-	if (ph_liq != NULL) {
-		effect_ph_liquid_data *dl = (void*)ph_liq->data;
-		return dl->amount;
+	effect_ph_liquid_data dl;
+	if (entity_load_effect(s, EF_PH_LIQUID, &dl)) {
+		return dl.amount;
 	}
 	return 1;
 }
 
 // List the attacks that `s' can try to perform at `o'
-attack_l_s* entity_list_attacks(entity_s *s, entity_s *o) {
+attack_l_s* entity_list_attacks(ent_ptr sp, ent_ptr o) {
 	(void)o;
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return NULL;
 	attack_l_s *r = NULL;
 	attack_type t;
 	effect_s *ef = s->effects;
@@ -2351,7 +2690,7 @@ attack_l_s* entity_list_attacks(entity_s *s, entity_s *o) {
 		if (ef->type == EF_LIMB_SLOT) {
 			effect_limb_slot_data *d = (void*)ef->data;
 			for (t = 0; t < ATK_N_COUNT; t++) {
-				entity_s *tool = attack_used_tool(s, d->item, t);
+				entity_s *tool = ent_aptr(attack_used_tool(sp, d->tag, t));
 				if (tool == NULL)
 					continue;
 				effect_s *ef1 = tool->effects;
@@ -2359,10 +2698,10 @@ attack_l_s* entity_list_attacks(entity_s *s, entity_s *o) {
 					if (ef1->type == EF_MATERIAL) {
 						effect_material_data *mat_d = (void*)ef1->data;
 						uint32_t sel_tag = mat_d->tag;
-						if (attack_type_possible(s, d->item, t, sel_tag)) {
+						if (attack_type_possible(sp, d->tag, t, sel_tag)) {
 							attack_l_s *th = o_malloc(sizeof(attack_l_s));
 							th->limb_slot_tag = d->tag;
-							th->limb_entity = d->item;
+							th->limb_entity = ent_aptr(d->item);
 							th->type = t;
 							th->tool = tool;
 							th->tool_mat_tag = sel_tag;
@@ -2382,7 +2721,10 @@ attack_l_s* entity_list_attacks(entity_s *s, entity_s *o) {
 	return r;
 }
 
-int container_get_amount(entity_s *s) {
+int container_get_amount(ent_ptr sp) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return 0;
 	int r = 0;
 	effect_s *t = effect_by_type(s->effects, EF_CONTAINER);
 	if (t == NULL)
@@ -2391,8 +2733,8 @@ int container_get_amount(entity_s *s) {
 	while (c != NULL) {
 		if (c->type == EF_CONTAINER_ITEM) {
 			effect_container_item_data *d = (void*)c->data;
-			if (d->item != NULL) {
-				effect_s *t = effect_by_type(d->item->effects, EF_PH_LIQUID);
+			if (d->item != ENT_NULL) {
+				effect_s *t = effect_by_type(ent_aptr(d->item)->effects, EF_PH_LIQUID);
 				if (t != NULL) {
 					effect_ph_liquid_data *td = (void*)t->data;
 					r += td->amount;
@@ -2407,7 +2749,10 @@ int container_get_amount(entity_s *s) {
 	return r;
 }
 
-void container_add_liquid(entity_s *s, liquid_type t, int amount) {
+void container_add_liquid(ent_ptr sp, liquid_type t, int amount) {
+	entity_s *s = ent_aptr(sp);
+	if (s == NULL)
+		return;
 	effect_s *e = effect_by_type(s->effects, EF_CONTAINER);
 	if (e == NULL)
 		return;
@@ -2415,8 +2760,8 @@ void container_add_liquid(entity_s *s, liquid_type t, int amount) {
 	while (c != NULL) {
 		if (c->type == EF_CONTAINER_ITEM) {
 			effect_container_item_data *d = (void*)c->data;
-			if (d->item != NULL) {
-				effect_s *liq = effect_by_type(d->item->effects, EF_PH_LIQUID);
+			if (d->item != ENT_NULL) {
+				effect_s *liq = effect_by_type(ent_aptr(d->item)->effects, EF_PH_LIQUID);
 				if (liq != NULL) {
 					effect_ph_liquid_data *liq_d = (void*)liq->data;
 					if (liq_d->type == t) {
@@ -2446,7 +2791,7 @@ void container_add_liquid(entity_s *s, liquid_type t, int amount) {
 		d->x = 0;
 		d->y = 0;
 		d->z = 0;
-		d->parent = s;
+		d->parent = ent_sptr(s);
 		d->parent_type = PARENT_REF_CONT;
 		effect_prepend(new_item, ef_ph);
 	}
@@ -2454,8 +2799,51 @@ void container_add_liquid(entity_s *s, liquid_type t, int amount) {
 	g_entities = new_item;
 	effect_s *new_eff = alloc_effect(EF_CONTAINER_ITEM);
 	effect_container_item_data *d = (void*)new_eff->data;
-	d->item = new_item;
+	d->item = ent_sptr(new_item);
 	effect_prepend(s, new_eff);
+}
+
+void dmg_deal(ent_ptr s, damage_type t, int v) {
+	// TODO if it triggers a complicated reaction, delay the signal
+	// by sending it as an effect
+	// Currently, EF_S_DMG isn't processed at all
+	// TODO remove code duplication
+	if (s == ENT_NULL)
+		return;
+	if (ent_aptr(s) != NULL) {
+		effect_material_data mat_d;
+		if (entity_load_effect(s, EF_MATERIAL, &mat_d)) {
+			int dmg_val = v;
+			if (t == DMGT_FIRE && mat_d.type != MAT_WOOD && mat_d.type != MAT_PLANT)
+				goto NO_DMG;
+			if ((t == DMGT_BLUNT || t == DMGT_CUT) && mat_d.type == MAT_GLASS)
+				dmg_val *= 5;
+			mat_d.dur -= dmg_val;
+NO_DMG:
+			if (mat_d.dur <= 0) {
+				effect_s *new_ef = alloc_effect(EF_B_NONEXISTENT);
+				effect_prepend(ent_aptr(s), new_ef);
+			}
+			entity_store_effect(s, EF_MATERIAL, &mat_d);
+		}
+	}
+	sector_s *sec;
+	int x, y, z;
+	if ((sec = ent_acptr(s, &x, &y, &z)) != NULL) {
+		effect_material_data mat_d;
+		if (entity_load_effect(s, EF_MATERIAL, &mat_d)) {
+			int dmg_val = v;
+			if (t == DMGT_FIRE && mat_d.type != MAT_WOOD && mat_d.type != MAT_PLANT)
+				goto NO_DMG1;
+			if ((t == DMGT_BLUNT || t == DMGT_CUT) && mat_d.type == MAT_GLASS)
+				dmg_val *= 5;
+			sec->block_blocks[x][y][z].dur -= dmg_val;
+NO_DMG1:
+			if (sec->block_blocks[x][y][z].dur <= 0) {
+				sec->block_blocks[x][y][z].type = BLK_EMPTY;
+			}
+		}
+	}
 }
 
 #include "gen-loaders.h"

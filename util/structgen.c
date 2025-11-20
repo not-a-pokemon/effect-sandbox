@@ -218,11 +218,9 @@ void put_struct(FILE *to, decl_t *d) {
 	decl_field_t *p = d->fields;
 	while (p != NULL) {
 		const char *type_str;
-		int space = 1;
 		static char tmp[256];
 		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
-			type_str = "struct entity_s *";
-			space = 0;
+			type_str = "ent_ptr";
 		} else if (p->type_tag == ENUM_TAG) {
 			snprintf(tmp, 256, "enum %s", p->type_name);
 			type_str = tmp;
@@ -231,8 +229,8 @@ void put_struct(FILE *to, decl_t *d) {
 		}
 		fprintf(
 			to,
-			"\t%s%s%s;\n",
-			type_str, space ? " " : "",
+			"\t%s %s;\n",
+			type_str,
 			p->name
 		);
 		p = p->next;
@@ -252,7 +250,7 @@ void put_loader(FILE *to, decl_t *d) {
 	decl_field_t *p = d->fields;
 	while (p != NULL) {
 		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
-			fprintf(to, "\t{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->%s = NULL; else d->%s = a_ent[t]; }\n", p->name, p->name);
+			fprintf(to, "\t{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->%s = ENT_NULL; else d->%s = ent_sptr(a_ent[t]); }\n", p->name, p->name);
 		} else if (p->type_tag == ENUM_TAG) {
 			fprintf(to, "\tfread(&d->%s, sizeof(int), 1, stream);\n", p->name);
 		} else {
@@ -274,7 +272,16 @@ void put_dumper(FILE *to, decl_t *d) {
 	decl_field_t *p = d->fields;
 	while (p != NULL) {
 		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
-			fprintf(to, "\t{ int t; if (d->%s == NULL){t = -1;}else{t = entity_get_index(d->%s);} fwrite(&t, sizeof(int), 1, stream); }\n", p->name, p->name);
+			fprintf(
+				to,
+				"\t{ int t; if (d->%s == ENT_NULL) {t = -1;}\n"
+				"\telse if (ent_aptr(d->%s) != NULL) {t = entity_get_index(ent_aptr(d->%s));}\n"
+				"\telse {fprintf(stderr, \"bad bad bad\\n\"); t = -1;}\n"
+				"\tfwrite(&t, sizeof(int), 1, stream); }\n",
+				p->name,
+				p->name,
+				p->name
+			);
 		} else if (p->type_tag == ENUM_TAG) {
 			fprintf(to, "\tfwrite(&d->%s, sizeof(int), 1, stream);\n", p->name);
 		} else {
@@ -300,7 +307,7 @@ int has_remover(decl_t *d) {
 void put_remover(FILE *to, decl_t *d) {
 	fprintf(
 		to,
-		"int effect_rem_%s(entity_s *s, effect_s *e) {\n"
+		"int effect_rem_%s(struct entity_s *s, effect_s *e) {\n"
 		"\t(void)s; (void)e;\n"
 		"\teffect_%s_data *d = (void*)e->data;\n",
 		d->name, d->name
@@ -310,13 +317,13 @@ void put_remover(FILE *to, decl_t *d) {
 		if (p->type_tag == ENT_R_TAG) {
 			fprintf(
 				to,
-				"\tif (d->%s == NULL || effect_by_type(d->%s->effects, EF_B_NONEXISTENT) != NULL) return 1;\n",
+				"\tif (d->%s == ENT_NULL || entity_has_effect(d->%s, EF_B_NONEXISTENT)) return 1;\n",
 				p->name, p->name
 			);
 		} else if (p->type_tag == ENT_N_TAG) {
 			fprintf(
 				to,
-				"\tif (d->%s != NULL && effect_by_type(d->%s->effects, EF_B_NONEXISTENT) != NULL) d->%s = NULL;\n",
+				"\tif (d->%s != ENT_NULL && entity_has_effect(d->%s, EF_B_NONEXISTENT)) d->%s = ENT_NULL;\n",
 				p->name, p->name, p->name
 			);
 		}

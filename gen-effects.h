@@ -2,12 +2,18 @@
 typedef struct effect_b_index_data {
 	int index;
 } effect_b_index_data;
+typedef struct effect_ph_block_data {
+	int x;
+	int y;
+	int z;
+	unsigned prop;
+} effect_ph_block_data;
 typedef struct effect_ph_item_data {
 	int x;
 	int y;
 	int z;
 	int weight;
-	struct entity_s *parent;
+	ent_ptr parent;
 	parent_ref_type parent_type;
 } effect_ph_item_data;
 typedef struct effect_tracer_data {
@@ -37,12 +43,12 @@ typedef struct effect_render_data {
 	uint8_t a;
 } effect_render_data;
 typedef struct effect_limb_slot_data {
-	struct entity_s *item;
+	ent_ptr item;
 	uint32_t tag;
 } effect_limb_slot_data;
 typedef struct effect_limb_hand_data {
 	int grab_type;
-	struct entity_s *item;
+	ent_ptr item;
 } effect_limb_hand_data;
 typedef struct effect_material_data {
 	material_type type;
@@ -54,20 +60,20 @@ typedef struct effect_aim_data {
 	int x;
 	int y;
 	int z;
-	struct entity_s *ent;
+	ent_ptr ent;
 } effect_aim_data;
 typedef struct effect_attack_data {
-	struct entity_s *ent;
-	struct entity_s *used_limb;
+	ent_ptr ent;
+	uint32_t limb_tag;
 	enum attack_type type;
 	uint32_t weapon_mat;
 	int delay;
 } effect_attack_data;
 typedef struct effect_table_item_data {
-	struct entity_s *item;
+	ent_ptr item;
 } effect_table_item_data;
 typedef struct effect_s_bump_data {
-	struct entity_s *ent;
+	ent_ptr ent;
 	int force;
 } effect_s_bump_data;
 typedef struct effect_s_dmg_data {
@@ -83,7 +89,7 @@ typedef struct effect_a_pressure_plate_data {
 } effect_a_pressure_plate_data;
 typedef struct effect_m_grab_data {
 	uint32_t eff_tag;
-	struct entity_s *ent;
+	ent_ptr ent;
 	uint32_t mat_tag;
 } effect_m_grab_data;
 typedef struct effect_m_drop_data {
@@ -91,7 +97,7 @@ typedef struct effect_m_drop_data {
 } effect_m_drop_data;
 typedef struct effect_m_put_data {
 	uint32_t eff_tag;
-	struct entity_s *where;
+	ent_ptr where;
 } effect_m_put_data;
 typedef struct effect_m_throw_data {
 	uint32_t eff_tag;
@@ -118,7 +124,7 @@ typedef struct effect_container_data {
 	int capacity;
 } effect_container_data;
 typedef struct effect_container_item_data {
-	struct entity_s *item;
+	ent_ptr item;
 } effect_container_item_data;
 typedef struct effect_wet_data {
 	enum liquid_type type;
@@ -126,14 +132,14 @@ typedef struct effect_wet_data {
 } effect_wet_data;
 typedef struct effect_m_fill_cont_data {
 	uint32_t hand_tag;
-	struct entity_s *target;
+	ent_ptr target;
 } effect_m_fill_cont_data;
 typedef struct effect_m_empty_cont_data {
 	uint32_t hand_tag;
 } effect_m_empty_cont_data;
 typedef struct effect_m_press_button_data {
 	uint32_t hand_tag;
-	struct entity_s *target;
+	ent_ptr target;
 	uint32_t mat_tag;
 } effect_m_press_button_data;
 typedef struct effect_s_press_button_data {
@@ -142,7 +148,7 @@ typedef struct effect_s_press_button_data {
 typedef struct effect_m_open_door_data {
 	int dir;
 	uint32_t hand_tag;
-	struct entity_s *target;
+	ent_ptr target;
 } effect_m_open_door_data;
 typedef struct effect_door_data {
 	int opened;

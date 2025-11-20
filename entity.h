@@ -11,6 +11,15 @@
 #define G_MOVE_START_DELAY 128
 #define G_PUDDLE_MAX 64
 
+#define ENT_NULL 0UL
+typedef uint64_t ent_ptr;
+
+typedef enum block_type {
+	BLK_EMPTY = 0,
+	BLK_FLOOR,
+	BLK_WALL,
+} block_type;
+
 typedef enum rotation_type {
 	RT_DICE,
 	RT_STICK,
@@ -24,16 +33,13 @@ typedef enum liquid_type {
 struct entity_s;
 struct effect_s;
 
-typedef struct effect_ph_block_data {
-	int x;
-	int y;
-	int z;
-	unsigned floor:1;
-	unsigned block_movement:1;
-	unsigned floor_up:1;
-	unsigned stair:1;
-	unsigned slope:1;
-} effect_ph_block_data;
+typedef enum block_prop_mask {
+	PB_FLOOR = 1,
+	PB_BLOCK_MOVEMENT = 1 << 1,
+	PB_FLOOR_UP = 1 << 2,
+	PB_STAIR = 1 << 3,
+	PB_SLOPE = 1 << 4,
+} block_prop_mask;
 
 typedef enum parent_ref_type {
 	PARENT_REF_HELD,
@@ -71,6 +77,12 @@ typedef enum attack_type {
 	ATK_N_COUNT = 4,
 } attack_type;
 
+typedef enum common_type_t {
+	CT_NONE = 0,
+	CT_WALL,
+	CT_FLOOR,
+} common_type_t;
+
 #include "gen-effects.h"
 
 typedef struct effect_s {
@@ -86,24 +98,33 @@ typedef struct entity_s {
 	struct effect_s *effects;
 	struct entity_s *prev;
 	struct entity_s *next;
+	// zero if not of common type, otherwise a vaild common type identifier
+	unsigned common_type;
+	char common_data[20];
 } entity_s;
 
 typedef struct entity_l_s {
 	struct entity_l_s *prev;
 	struct entity_l_s *next;
-	struct entity_s *ent;
+	ent_ptr ent;
 } entity_l_s;
 
+// The smallest block type. It has only 8 bytes in the structure
+typedef struct block_s {
+	unsigned type;
+	int dur;
+} block_s;
+
 typedef struct sector_s {
-	struct sector_s *sprev;
-	struct sector_s *snext;
+	// Sectors are stored in a cartesian tree
+	struct sector_s *ch[2];
+	int prio;
 	int x;
 	int y;
 	int z;
 	struct entity_l_s *block_entities[G_SECTOR_SIZE][G_SECTOR_SIZE][G_SECTOR_SIZE];
+	struct block_s block_blocks[G_SECTOR_SIZE][G_SECTOR_SIZE][G_SECTOR_SIZE];
 } sector_s;
-
-typedef sector_s sectors_s;
 
 typedef struct attack_l_s {
 	uint32_t limb_slot_tag;
@@ -123,7 +144,7 @@ extern int effect_data_size[];
 extern effect_dump_t effect_dump_functions[];
 extern effect_scan_t effect_scan_functions[];
 extern effect_rem_t effect_rem_functions[];
-extern sectors_s *g_sectors;
+extern sector_s *g_sectors;
 extern entity_s *g_entities;
 extern rng_state_s *g_dice;
 
@@ -136,8 +157,11 @@ void coord_normalize(int *x, int *cx);
 
 void entity_prepend(entity_s *g, entity_s *s);
 
-sector_s *sector_get_sector(sectors_s *s, int x, int y, int z);
-entity_l_s *sector_get_block_entities(sector_s *s, int x, int y, int z);
+sector_s* sector_get_sector(sector_s *s, int x, int y, int z);
+void sector_split(sector_s *s, int at_x, int at_y, int at_z, sector_s **buf);
+sector_s* sector_insert(sector_s *s, sector_s *n);
+
+entity_l_s* sector_get_block_entities(sector_s *s, int x, int y, int z);
 int sector_get_block_floor_up(sector_s *s, int x, int y, int z);
 int sector_get_block_floor(sector_s *s, int x, int y, int z);
 
@@ -146,82 +170,91 @@ int sector_get_block_blocked_movement(sector_s *s, int x, int y, int z);
 int sector_get_block_stairs(sector_s *s, int x, int y, int z);
 int sector_get_block_slope(sector_s *s, int x, int y, int z);
 
-effect_s *effect_by_type(effect_s *s, effect_type t);
-effect_s *effect_by_ptr(effect_s *s, effect_s *f);
+int entity_has_effect(ent_ptr s, effect_type t);
+int entity_load_effect(ent_ptr s, effect_type t, void *d);
+int entity_store_effect(ent_ptr s, effect_type t, void *d);
+
+effect_s* effect_by_type(effect_s *s, effect_type t);
+effect_s* effect_by_ptr(effect_s *s, effect_s *f);
 effect_s* next_effect_by_type(effect_s *s, effect_type t);
 effect_s* prev_effect_by_type(effect_s *s, effect_type t);
 
-void apply_triggers(entity_s *s);
-void apply_instants(entity_s *s);
-void apply_reactions(entity_s *s);
+void apply_triggers(ent_ptr s);
+void apply_instants(ent_ptr s);
+void apply_reactions(ent_ptr s);
 void process_tick(entity_s *sl);
 
 entity_s* clear_nonexistent(entity_s *sl);
 
-int entity_coords(entity_s *s, int *x, int *y, int *z);
-int entity_set_coords(entity_s *s, int x, int y, int z);
-entity_s* entity_copy(entity_s *s);
-void detach_entity(entity_s *s, int x, int y, int z);
-void attach_entity(entity_s *s, int x, int y, int z);
-void detach_generic_entity(entity_s *s);
-void attach_generic_entity(entity_s *s);
+int entity_coords(ent_ptr s, int *x, int *y, int *z);
+int entity_set_coords(ent_ptr s, int x, int y, int z);
+entity_s* entity_copy(ent_ptr s);
+void detach_entity(ent_ptr s, int x, int y, int z);
+void attach_entity(ent_ptr s, int x, int y, int z);
+void detach_generic_entity(ent_ptr s);
+void attach_generic_entity(ent_ptr s);
 
 void effect_unlink(entity_s *s, effect_s *e);
 void effect_prepend(entity_s *s, effect_s *e);
 
 effect_s* entity_limb_by_tag(entity_s *s, uint32_t tag);
-effect_s* entity_limb_by_entity(entity_s *s, entity_s *t);
+effect_s* entity_limb_by_entity(entity_s *s, ent_ptr t);
 effect_s* entity_material_by_tag(entity_s *s, uint32_t tag);
 
-void apply_gravity(entity_s *s);
-void apply_block_move(entity_s *s);
-void apply_stair_move(entity_s *s);
-void apply_tracer(entity_s *s);
-void apply_movement(entity_s *s);
+void apply_gravity(ent_ptr s);
+void apply_block_move(ent_ptr s);
+void apply_stair_move(ent_ptr s);
+void apply_tracer(ent_ptr s);
+void apply_movement(ent_ptr s);
 
-int attack_type_possible(entity_s *s, entity_s *used_limb, attack_type type, uint32_t used_tag);
-entity_s* attack_used_tool(entity_s *s, entity_s *used_limb, attack_type type);
-void apply_attack(entity_s *s);
+int attack_type_possible(ent_ptr s, uint32_t limb_tag, attack_type type, uint32_t used_tag);
+ent_ptr attack_used_tool(ent_ptr s, uint32_t limb_tag, attack_type type);
+void apply_attack(ent_ptr s);
 
-void liquid_deduplicate(entity_s *s);
-void apply_liquid_movement(entity_s *s);
+void liquid_deduplicate(ent_ptr s);
+void apply_liquid_movement(ent_ptr s);
 
-void apply_physics(entity_s *s);
+void apply_physics(ent_ptr s);
 
-void trigger_move(entity_s *s, int x, int y, int z);
-void trigger_go_up(entity_s *s);
-void trigger_go_down(entity_s *s);
-void trigger_grab(entity_s *s, effect_s *h, entity_s *w, uint32_t tag);
-void trigger_drop(entity_s *s, effect_s *h);
-void trigger_put(entity_s *s, effect_s *h, entity_s *w);
-void trigger_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
-void trigger_attack(entity_s *s, entity_s *e, attack_type type, entity_s *used_limb, uint32_t weapon_mat);
-void trigger_fill_cont(entity_s *s, effect_s *h, entity_s *t);
-void trigger_empty_cont(entity_s *s, effect_s *h);
-void trigger_press_button(entity_s *s, effect_s *h, entity_s *t, effect_s *w);
-void trigger_open_door(entity_s *s, effect_s *h, entity_s *t, int dir);
+void trigger_move(ent_ptr s, int x, int y, int z);
+void trigger_go_up(ent_ptr s);
+void trigger_go_down(ent_ptr s);
+void trigger_grab(ent_ptr s, effect_s *h, ent_ptr w, uint32_t tag);
+void trigger_drop(ent_ptr s, effect_s *h);
+void trigger_put(ent_ptr s, effect_s *h, ent_ptr w);
+void trigger_throw(ent_ptr s, effect_s *h, int x, int y, int z, int speed);
+void trigger_attack(ent_ptr s, ent_ptr e, attack_type type, uint32_t limb_tag, uint32_t weapon_mat);
+void trigger_fill_cont(ent_ptr s, effect_s *h, ent_ptr t);
+void trigger_empty_cont(ent_ptr s, effect_s *h);
+void trigger_press_button(ent_ptr s, effect_s *h, ent_ptr t, effect_s *w);
+void trigger_open_door(ent_ptr s, effect_s *h, ent_ptr t, int dir);
 
-void hand_grab(entity_s *ent, effect_s *hand, entity_s *item, uint32_t tag);
-void hand_drop(entity_s *ent, effect_s *hand);
-void hand_put(entity_s *ent, effect_s *hand, entity_s *w);
-void hand_throw(entity_s *s, effect_s *h, int x, int y, int z, int speed);
-void hand_fill_cont(entity_s *s, effect_s *h, entity_s *t);
-void hand_empty_cont(entity_s *s, effect_s *h);
-void hand_press_button(entity_s *s, effect_s *h, entity_s *t, uint32_t mat_tag);
+void hand_grab(ent_ptr ent, effect_s *hand, ent_ptr item, uint32_t tag);
+void hand_drop(ent_ptr ent, effect_s *hand);
+void hand_put(ent_ptr ent, effect_s *hand, ent_ptr w);
+void hand_throw(ent_ptr s, effect_s *h, int x, int y, int z, int speed);
+void hand_fill_cont(ent_ptr s, effect_s *h, ent_ptr t);
+void hand_empty_cont(ent_ptr s, effect_s *h);
+void hand_press_button(ent_ptr s, effect_s *h, ent_ptr t, uint32_t mat_tag);
 
 void dump_effect(effect_s *e, FILE *stream);
 void dump_entity(entity_s *s, FILE *stream);
 void dump_sector(sector_s *s, FILE *stream);
+void dump_sector_bslice(sector_s *s, FILE *stream);
 void entity_enumerate(entity_s *s, int *ent_id);
+
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id);
+void sector_dump_bslice_rec(sector_s *s, FILE *stream);
+void sector_dump_rec(sector_s *s, FILE *stream);
 void dump_sector_list(sector_s *s, FILE *stream);
-void effect_dump_ph_block(effect_s *e, FILE *stream);
+
 void unload_entity(entity_s *s);
 entity_s *load_sector_list(FILE *stream);
 effect_s* scan_effect(int n_ent, entity_s **a_ent, FILE *stream);
 entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream);
+void scan_bslice(FILE *stream);
 void unload_sector(sector_s *s);
 
-void effect_scan_ph_block(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream);
 int effect_rem_ph_item(entity_s *s, effect_s *e);
 
 int entity_get_index(entity_s *s);
@@ -236,20 +269,22 @@ entity_l_s* sector_get_block_entities_indirect(sector_s *s, int x, int y, int z)
 entity_l_s* entity_l_s_copy(entity_l_s *eo);
 void entity_l_s_free(entity_l_s *s);
 
-int entity_reachable(entity_s *s, effect_s *limb, entity_s *e);
+int entity_reachable(ent_ptr s, effect_s *limb, ent_ptr e);
 
-entity_s* tracer_check_bump(entity_s *s, int x, int y, int z);
+ent_ptr tracer_check_bump(ent_ptr s, int x, int y, int z);
 
-void unparent_entity(entity_s *s);
-void unparent_attach_entity(entity_s *s);
-void lift_entity(entity_s *s);
+void unparent_entity(ent_ptr s);
+void unparent_attach_entity(ent_ptr s);
+void lift_entity(ent_ptr s);
 
-int entity_weight(entity_s *s);
-int entity_size(entity_s *s);
+int entity_weight(ent_ptr s);
+int entity_size(ent_ptr s);
 
-attack_l_s* entity_list_attacks(entity_s *s, entity_s *o);
+attack_l_s* entity_list_attacks(ent_ptr s, ent_ptr o);
 
-int container_get_amount(entity_s *s);
-void container_add_liquid(entity_s *s, liquid_type t, int amount);
+int container_get_amount(ent_ptr s);
+void container_add_liquid(ent_ptr s, liquid_type t, int amount);
+
+void dmg_deal(ent_ptr s, damage_type t, int v);
 
 #endif

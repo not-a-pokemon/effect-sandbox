@@ -8,6 +8,7 @@
 #define O_EFF_ZERO_NR   8192
 #define O_EFF_SMALL_NR  8192
 #define O_EFF_MEDIUM_NR 8192
+#define O_SECTOR_NR     8192
 
 typedef struct {
 	char d[sizeof(effect_s)];
@@ -33,6 +34,10 @@ static placeholder_medium *eff_buf_medium;
 static int *eff_queue_medium;
 int eff_zero_nr, eff_small_nr, eff_medium_nr;
 
+static sector_s *sect_buf;
+static int *sect_queue;
+int sect_nr;
+
 static void *o_buf[O_BUF_S];
 static size_t o_buf_cur = 0;
 static void *l_buf[O_BUF_S];
@@ -48,6 +53,8 @@ void o_init_allocator(void) {
 	eff_queue_small = malloc(sizeof(int) * O_EFF_SMALL_NR);
 	eff_buf_medium = malloc(sizeof(placeholder_medium) * O_EFF_MEDIUM_NR);
 	eff_queue_medium = malloc(sizeof(int) * O_EFF_MEDIUM_NR);
+	sect_buf = malloc(sizeof(sector_s) * O_SECTOR_NR);
+	sect_queue = malloc(sizeof(int) * O_SECTOR_NR);
 	for (i = 0; i < O_ENTITY_NR; i++) {
 		ent_buf_queue[i] = i;
 	}
@@ -64,6 +71,10 @@ void o_init_allocator(void) {
 		eff_queue_medium[i] = i;
 	}
 	eff_medium_nr = O_EFF_MEDIUM_NR;
+	for (i = 0; i < O_SECTOR_NR; i++) {
+		sect_queue[i] = i;
+	}
+	sect_nr = O_SECTOR_NR;
 }
 
 entity_s* o_alloc_entity(void) {
@@ -74,6 +85,8 @@ entity_s* o_alloc_entity(void) {
 	ent_free_nr--;
 	entity_s *t = ent_buf + ent_buf_queue[ent_free_nr];
 	ent_buf_queue[ent_free_nr] = -1;
+	t->effects = NULL;
+	t->common_type = CT_NONE;
 	return t;
 }
 
@@ -193,6 +206,49 @@ void o_free_effect_i(effect_s *e, size_t t) {
 		return;
 	}
 	o_free_effect(e, s);
+}
+
+sector_s* o_alloc_sector(void) {
+	if (sect_nr == 0) {
+		fprintf(stderr, "No free sectors\n");
+		return NULL;
+	}
+	sect_nr--;
+	sector_s *t = sect_buf + sect_queue[sect_nr];
+	sect_queue[sect_nr] = -1;
+	return t;
+}
+
+void o_free_sector(sector_s *s) {
+	if (s < sect_buf || s > sect_buf + O_SECTOR_NR - 1) {
+		fprintf(stderr, "Attempt to free a garbage pointer (sector) %p\n", s);
+		return;
+	}
+	sect_queue[sect_nr] = s - sect_buf;
+	sect_nr++;
+}
+
+ent_ptr ent_sptr(entity_s *s) {
+	return (size_t)(s - ent_buf) + 1;
+}
+
+entity_s* ent_aptr(ent_ptr s) {
+	if (s == 0 || s > O_ENTITY_NR)
+		return NULL;
+	return ent_buf + (s - 1);
+}
+
+ent_ptr ent_cptr(sector_s *s, int x, int y, int z) {
+	return ((size_t)(s - sect_buf) << 9) | (x << 6) | (y << 3) | z | ENT_CPTR_BIT;
+}
+
+sector_s* ent_acptr(ent_ptr s, int *x, int *y, int *z) {
+	if (!(s & ENT_CPTR_BIT))
+		return NULL;
+	*x = (s >> 6) & 7;
+	*y = (s >> 3) & 7;
+	*z = s & 7;
+	return sect_buf + ((s ^ ENT_CPTR_BIT) >> 9);
 }
 
 void* o_malloc(size_t s) {

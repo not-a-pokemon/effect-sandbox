@@ -5,7 +5,11 @@ decl-s b_index
 	#/ b_index is not for dumping in files
 	#/ entity indices are stored in a different way
 	int index :
-decl-s ph_block 'external :
+decl-s ph_block
+	int x
+	int y
+	int z
+	unsigned prop :
 decl-s ph_item 'external-remover
 	int x int y int z int weight ent-n parent 'T parent_ref_type parent_type :
 decl-s falling 'empty :
@@ -27,7 +31,7 @@ decl-s material
 decl-s aim int x int y int z ent-n ent :
 decl-s attack
 	ent-r ent
-	ent-r used_limb
+	uint32_t limb_tag
 	'E attack_type type
 	uint32_t weapon_mat
 	int delay :

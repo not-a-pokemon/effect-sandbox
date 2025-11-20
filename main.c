@@ -42,33 +42,35 @@ int gcd(int x, int y) {
 	return y;
 }
 
-int entity_rend_chr(entity_s *ent, char *chr, int *r, int *g, int *b, int *a) {
-	effect_s *ef = effect_by_type(ent->effects, EF_RENDER);
-	if (ef != NULL) {
-		effect_render_data *d = (void*)ef->data;
-		*chr = d->chr;
-		*r = d->r;
-		*g = d->g;
-		*b = d->b;
-		*a = d->a;
-		return 1;
-	}
-	ef = effect_by_type(ent->effects, EF_PH_LIQUID);
-	if (ef != NULL) {
-		effect_ph_liquid_data *d = (void*)ef->data;
-		*chr = '~';
-		if (d->type == LIQ_WATER) {
-			*r = 60;
-			*b = 200;
-			*g = 150;
-			*a = 128;
-		} else {
-			*r = 128;
-			*b = 0;
-			*g = 200;
-			*a = 128;
+int entity_rend_chr(ent_ptr ent, char *chr, int *r, int *g, int *b, int *a) {
+	{
+		effect_render_data d;
+		if (entity_load_effect(ent, EF_RENDER, &d)) {
+			*chr = d.chr;
+			*r = d.r;
+			*g = d.g;
+			*b = d.b;
+			*a = d.a;
+			return 1;
 		}
-		return 1;
+	}
+	{
+		effect_ph_liquid_data d;
+		if (entity_load_effect(ent, EF_PH_LIQUID, &d)) {
+			*chr = '~';
+			if (d.type == LIQ_WATER) {
+				*r = 60;
+				*b = 200;
+				*g = 150;
+				*a = 128;
+			} else {
+				*r = 128;
+				*b = 0;
+				*g = 200;
+				*a = 128;
+			}
+			return 1;
+		}
 	}
 	return 0;
 }
@@ -101,12 +103,26 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 				s = sector_get_sector(g_sectors, cx, cy, cz);
 			}
 			if (s != NULL) {
-				entity_l_s *t = sector_get_block_entities(s, x, y, z);
-				for (; t != NULL; t = t->next) {
-					entity_s *te = t->ent;
+				if (s->block_blocks[x][y][z].type != BLK_EMPTY) {
 					char c_chr;
 					int c_r, c_g, c_b, c_a;
-					if (entity_rend_chr(te, &c_chr, &c_r, &c_g, &c_b, &c_a)) {
+					if (entity_rend_chr(ent_cptr(s, x, y, z), &c_chr, &c_r, &c_g, &c_b, &c_a)) {
+						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+						char rr[2] = {c_chr, '\0'};
+						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
+						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
+						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+						SDL_RenderCopy(rend, tex, NULL, &r);
+						SDL_DestroyTexture(tex);
+						SDL_FreeSurface(surf);
+					}
+				}
+				entity_l_s *t = sector_get_block_entities(s, x, y, z);
+				for (; t != NULL; t = t->next) {
+					entity_s *te = ent_aptr(t->ent);
+					char c_chr;
+					int c_r, c_g, c_b, c_a;
+					if (entity_rend_chr(t->ent, &c_chr, &c_r, &c_g, &c_b, &c_a)) {
 						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {c_chr, '\0'};
 						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
@@ -149,11 +165,10 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	if (ef != NULL) {
 		slc += snprintf(slc, 128 - (slc - sl), "[attacking");
 		effect_attack_data *d = (void*)ef->data;
-		if (d->ent != NULL) {
-			effect_s *mat = effect_by_type(d->ent->effects, EF_MATERIAL);
-			if (mat != NULL) {
-				effect_material_data *mat_d = (void*)mat->data;
-				slc += snprintf(slc, 128 - (slc - sl), " target dur:%d", mat_d->dur);
+		if (d->ent != ENT_NULL) {
+			effect_material_data mat_d;
+			if (entity_load_effect(d->ent, EF_MATERIAL, &mat_d)) {
+				slc += snprintf(slc, 128 - (slc - sl), " target dur:%d", mat_d.dur);
 			}
 		}
 		slc += snprintf(slc, 128 - (slc - sl), "]");
@@ -161,21 +176,22 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	ef = effect_by_type(ent->effects, EF_LIMB_SLOT);
 	if (ef != NULL) {
 		effect_limb_slot_data *d = (void*)ef->data;
-		entity_s *l = d->item;
-		if (l != NULL) {
-			effect_s *l_ef = effect_by_type(l->effects, EF_LIMB_HAND);
-			if (l_ef != NULL) {
-				effect_limb_hand_data *l_d = (void*)l_ef->data;
-				if (l_d->item != NULL) {
-					slc += snprintf(slc, 128 - (slc - sl), "[holding %p", l_d->item);
-					effect_s *l_d_rend = effect_by_type(l_d->item->effects, EF_RENDER);
-					if (l_d_rend != NULL) {
-						effect_render_data *l_d_rend_d = (void*)l_d_rend->data;
-						slc += snprintf(slc, 128 - (slc - sl), "(%c)", l_d_rend_d->chr);
+		ent_ptr l = d->item;
+		if (l != ENT_NULL) {
+			effect_limb_hand_data l_d;
+			if (entity_load_effect(l, EF_LIMB_HAND, &l_d)) {
+				if (l_d.item != ENT_NULL) {
+					slc += snprintf(slc, 128 - (slc - sl), "[holding %lu", l_d.item);
+					{
+						effect_render_data l_d_rend_d;
+						if (entity_load_effect(l_d.item, EF_RENDER, &l_d_rend_d)) {
+							slc += snprintf(slc, 128 - (slc - sl), "(%c)", l_d_rend_d.chr);
+						}
 					}
-					effect_s *l_d_aim = effect_by_type(l_d->item->effects, EF_AIM);
-					if (l_d_aim != NULL) {
-						slc += snprintf(slc, 128 - (slc - sl), "aim");
+					{
+						if (entity_has_effect(l_d.item, EF_AIM)) {
+							slc += snprintf(slc, 128 - (slc - sl), "aim");
+						}
 					}
 					slc += snprintf(slc, 128 - (slc - sl), "]");
 				}
@@ -186,7 +202,7 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	if (ef != NULL) {
 		slc += snprintf(slc, 128 - (slc - sl), "[falling");
 		int x, y, z;
-		if (entity_coords(ent, &x, &y, &z)) {
+		if (entity_coords(ent_sptr(ent), &x, &y, &z)) {
 			if (z < 0) {
 				slc += snprintf(slc, 128 - (slc - sl), " in void");
 			}
@@ -221,16 +237,13 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	}
 }
 
-void spawn_simple_floor(int x, int y, int z) {
+void spawn_simple_floor_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		effect_ph_block_data *d = (void*)ef_ph->data;
-		d->floor = 1;
-		d->floor_up = 0;
-		d->block_movement = 0;
-		d->slope = 0;
+		effect_ph_block_data *d = (void *)ef_ph->data;
+		d->prop = PB_FLOOR;
 		d->x = x;
 		d->y = y;
 		d->z = z;
@@ -238,7 +251,7 @@ void spawn_simple_floor(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		effect_render_data *d = (void*)ef_rend->data;
+		effect_render_data *d = (void *)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
@@ -248,7 +261,7 @@ void spawn_simple_floor(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		effect_material_data *d = (void*)ef_mat->data;
+		effect_material_data *d = (void *)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
 		d->prop = 0;
@@ -257,7 +270,27 @@ void spawn_simple_floor(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
+}
+
+void spawn_simple_floor(int x, int y, int z) {
+	int xc = 0, yc = 0, zc = 0;
+	coord_normalize(&x, &xc);
+	coord_normalize(&y, &yc);
+	coord_normalize(&z, &zc);
+	sector_s *sec = sector_get_sector(g_sectors, xc, yc, zc);
+	if (sec != NULL) {
+		if (sec->block_blocks[x][y][z].type == BLK_EMPTY) {
+			sec->block_blocks[x][y][z].type = BLK_FLOOR;
+			sec->block_blocks[x][y][z].dur = 10;
+		} else {
+			spawn_simple_floor_uncomp(
+				x + xc * G_SECTOR_SIZE,
+				y + yc * G_SECTOR_SIZE,
+				z + zc * G_SECTOR_SIZE
+			);
+		}
+	}
 }
 
 void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
@@ -266,10 +299,7 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
 		effect_ph_block_data *d = (void*)ef_ph->data;
-		d->floor = 1;
-		d->floor_up = 0;
-		d->block_movement = 0;
-		d->slope = 0;
+		d->prop = PB_FLOOR;
 		d->x = x;
 		d->y = y;
 		d->z = z;
@@ -293,19 +323,16 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
 }
 
-void spawn_simple_wall(int x, int y, int z) {
+void spawn_simple_wall_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		effect_ph_block_data *d = (void*)ef_ph->data;
-		d->floor = 0;
-		d->floor_up = 1;
-		d->block_movement = 1;
-		d->slope = 0;
+		effect_ph_block_data *d = (void *)ef_ph->data;
+		d->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
 		d->x = x;
 		d->y = y;
 		d->z = z;
@@ -313,7 +340,7 @@ void spawn_simple_wall(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		effect_render_data *d = (void*)ef_rend->data;
+		effect_render_data *d = (void *)ef_rend->data;
 		d->r = 0;
 		d->g = 255;
 		d->b = 0;
@@ -323,7 +350,7 @@ void spawn_simple_wall(int x, int y, int z) {
 	}
 	{
 		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		effect_material_data *d = (void*)ef_mat->data;
+		effect_material_data *d = (void *)ef_mat->data;
 		d->type = MAT_WOOD;
 		d->dur = 10;
 		d->prop = 0;
@@ -332,7 +359,27 @@ void spawn_simple_wall(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
+}
+
+void spawn_simple_wall(int x, int y, int z) {
+	int xc = 0, yc = 0, zc = 0;
+	coord_normalize(&x, &xc);
+	coord_normalize(&y, &yc);
+	coord_normalize(&z, &zc);
+	sector_s *sec = sector_get_sector(g_sectors, xc, yc, zc);
+	if (sec != NULL) {
+		if (sec->block_blocks[x][y][z].type == BLK_EMPTY) {
+			sec->block_blocks[x][y][z].type = BLK_WALL;
+			sec->block_blocks[x][y][z].dur = 10;
+		} else {
+			spawn_simple_wall_uncomp(
+				x + xc * G_SECTOR_SIZE,
+				y + yc * G_SECTOR_SIZE,
+				z + zc * G_SECTOR_SIZE
+			);
+		}
+	}
 }
 
 void spawn_simple_door(int x, int y, int z) {
@@ -341,10 +388,7 @@ void spawn_simple_door(int x, int y, int z) {
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
 		effect_ph_block_data *d = (void*)ef_ph->data;
-		d->floor = 0;
-		d->floor_up = 1;
-		d->block_movement = 1;
-		d->slope = 0;
+		d->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
 		d->x = x;
 		d->y = y;
 		d->z = z;
@@ -383,7 +427,7 @@ void spawn_simple_door(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
 }
 
 
@@ -397,7 +441,7 @@ void spawn_wood_piece(int x, int y, int z) {
 		d->y = y;
 		d->z = z;
 		d->weight = 3;
-		d->parent = NULL;
+		d->parent = ENT_NULL;
 		effect_prepend(new_ent, ef_ph);
 	}
 	{
@@ -421,7 +465,7 @@ void spawn_wood_piece(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
 }
 
 void spawn_simple_stair(int x, int y, int z) {
@@ -430,10 +474,7 @@ void spawn_simple_stair(int x, int y, int z) {
 	{
 		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
 		effect_ph_block_data *d = (void*)ef_ph->data;
-		d->floor = 0;
-		d->stair = 1;
-		d->floor_up = 0;
-		d->block_movement = 0;
+		d->prop = PB_STAIR;
 		d->x = x;
 		d->y = y;
 		d->z = z;
@@ -451,10 +492,10 @@ void spawn_simple_stair(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
 }
 
-void spawn_circle_mover(int x, int y, int z) {
+void spawn_circle_mover(int x, int y, int z, char chr) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
 	{
@@ -473,7 +514,7 @@ void spawn_circle_mover(int x, int y, int z) {
 		d->g = 128;
 		d->b = 255;
 		d->a = 128;
-		d->chr = 'q';
+		d->chr = chr;
 		effect_prepend(new_ent, ef_rend);
 	}
 	{
@@ -491,25 +532,23 @@ void spawn_circle_mover(int x, int y, int z) {
 	}
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
-	attach_generic_entity(new_ent);
+	attach_generic_entity(ent_sptr(new_ent));
 }
 
 void setup_field(void) {
 	{
-		for (int i = -1; i < 3; i ++) {
-			for (int j = -1; j < 3; j ++) {
-				sector_s *new_sect = o_malloc(sizeof(sector_s));
+		for (int i = -1; i < 20; i ++) {
+			for (int j = -1; j < 20; j ++) {
+				sector_s *new_sect = o_alloc_sector();
 				new_sect->x = i;
 				new_sect->y = j;
 				new_sect->z = 0;
-				new_sect->snext = NULL;
-				new_sect->sprev = NULL;
-				memset(new_sect->block_entities, 0, sizeof(entity_l_s*) * G_SECTOR_SIZE * G_SECTOR_SIZE * G_SECTOR_SIZE);
-				if (g_sectors != NULL) {
-					new_sect->snext = g_sectors;
-					g_sectors->sprev = new_sect;
-				}
-				g_sectors = new_sect;
+				/* TODO this should be a random number generator with a big range */
+				new_sect->prio = rng_next(g_dice);
+				memset(new_sect->ch, 0, sizeof(new_sect->ch));
+				memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
+				memset(new_sect->block_blocks, 0, sizeof(new_sect->block_blocks));
+				g_sectors = sector_insert(g_sectors, new_sect);
 			}
 		}
 
@@ -522,7 +561,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 7;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -567,11 +606,11 @@ void setup_field(void) {
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
-				dt->parent = new_ent;
+				dt->parent = ent_sptr(new_ent);
 				dt->parent_type = PARENT_REF_LIMB;
 				effect_prepend(e_leg, ef_item);
 
-				d->item = e_leg;
+				d->item = ent_sptr(e_leg);
 			}
 			effect_prepend(new_ent, ef_limb_slot);
 		}
@@ -587,7 +626,7 @@ void setup_field(void) {
 
 				effect_s *ef_hand = alloc_effect(EF_LIMB_HAND);
 				effect_limb_hand_data *hand_d = (void*)ef_hand->data;
-				hand_d->item = NULL;
+				hand_d->item = ENT_NULL;
 				effect_prepend(e_hand, ef_hand);
 
 				effect_s *ef_mat = alloc_effect(EF_MATERIAL);
@@ -601,17 +640,17 @@ void setup_field(void) {
 				effect_s *ef_item = alloc_effect(EF_PH_ITEM);
 				effect_ph_item_data *dt = (void*)ef_item->data;
 				dt->weight = 1;
-				dt->parent = new_ent;
+				dt->parent = ent_sptr(new_ent);
 				dt->parent_type = PARENT_REF_LIMB;
 				effect_prepend(e_hand, ef_item);
 
-				d->item = e_hand;
+				d->item = ent_sptr(e_hand);
 			}
 			effect_prepend(new_ent, ef_limb_slot);
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -623,7 +662,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 2;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -659,7 +698,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -678,7 +717,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 1;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -701,7 +740,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -713,7 +752,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 1;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -740,7 +779,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -752,7 +791,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 4;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -777,12 +816,12 @@ void setup_field(void) {
 			d->x = G_TRACER_RESOLUTION / 2;
 			d->y = G_TRACER_RESOLUTION;
 			d->z = 0;
-			d->ent = NULL;
+			d->ent = ENT_NULL;
 			effect_prepend(new_ent, new_eff);
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -794,7 +833,7 @@ void setup_field(void) {
 			d->y = 0;
 			d->z = 0;
 			d->weight = 8;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -822,7 +861,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -834,7 +873,7 @@ void setup_field(void) {
 			d->y = 2;
 			d->z = 1;
 			d->weight = 0;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
@@ -846,7 +885,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -857,7 +896,7 @@ void setup_field(void) {
 			d->x = 3;
 			d->y = 3;
 			d->z = 0;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			d->weight = 3;
 			effect_prepend(new_ent, ph_item);
 		}
@@ -890,7 +929,7 @@ void setup_field(void) {
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
@@ -902,7 +941,7 @@ void setup_field(void) {
 			d->y = 2;
 			d->z = 0;
 			d->weight = 4;
-			d->parent = NULL;
+			d->parent = ENT_NULL;
 			effect_prepend(new_ent, new_eff);
 		}
 		{
@@ -933,7 +972,7 @@ void setup_field(void) {
 			d->tag = 1;
 			effect_prepend(new_ent, new_eff);
 		}
-		attach_generic_entity(new_ent);
+		attach_generic_entity(ent_sptr(new_ent));
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
 	}
@@ -947,7 +986,6 @@ void setup_field(void) {
 		spawn_simple_wall(-1, i, 0);
 		spawn_simple_wall(i, -1, 0);
 		for (int j = 0; j < 10; j ++) {
-			spawn_simple_floor(i, j, 0);
 			if (i != 1 || j != 1) {
 				if (i == 2 && j == 2) {
 					spawn_pressure_floor(i, j, 1, 5);
@@ -957,13 +995,26 @@ void setup_field(void) {
 			}
 		}
 	}
+	for (int i = 0; i < G_SECTOR_SIZE * 5; i++) {
+		for (int j = 0; j < G_SECTOR_SIZE * 5; j++) {
+			spawn_simple_floor(i, j, 0);
+		}
+	}
+	char ch = 'a';
+	for (int i = 7; i < G_SECTOR_SIZE * 2; i++) {
+		for (int j = 7; j < G_SECTOR_SIZE * 2; j++) {
+			spawn_circle_mover(i, j, 0, ch);
+			ch++;
+			if (ch == 'z' + 1) ch = 'a';
+		}
+	}
 	spawn_simple_wall(5, 5, 0);
 	spawn_simple_wall(-1, -1, 0);
 	spawn_simple_wall(5, -1, 0);
 	spawn_simple_wall(-1, 5, 0);
 	spawn_wood_piece(0, 2, 0);
 	spawn_simple_stair(1, 1, 0);
-	spawn_circle_mover(3, 3, 1);
+	spawn_circle_mover(3, 3, 1, 'q');
 }
 
 #define INPUT_ARG_MAX 16
@@ -978,6 +1029,7 @@ typedef enum cmap_arg_t_type {
 
 typedef struct cmap_arg_t {
 	void *data;
+	ent_ptr data_p;
 	cmap_arg_t_type type;
 } cmap_arg_t;
 
@@ -1001,13 +1053,13 @@ void params_clear(void) {
 	gu_params.nargs = 0;
 }
 
-void params_push_entity(entity_s *s) {
+void params_push_entity(ent_ptr s) {
 	if (gu_params.nargs == INPUT_ARG_MAX) {
 		fprintf(stderr, "[WARN] Exceeded INPUT_ARG_MAX\n");
 		return;
 	}
 	gu_params.args[gu_params.nargs].type = CMAP_ARG_ENTITY;
-	gu_params.args[gu_params.nargs].data = s;
+	gu_params.args[gu_params.nargs].data_p = s;
 	gu_params.nargs++;
 }
 
@@ -1044,8 +1096,8 @@ void cmap_params_cleanup(void) {
 }
 
 typedef struct gu_things_t {
-	int skip_moving:1;
-	int no_trigger:1;
+	unsigned skip_moving:1;
+	unsigned no_trigger:1;
 } gu_things_t;
 
 gu_things_t gu_things;
@@ -1061,11 +1113,11 @@ void cmap_wait(cmap_params_t *p) {
 }
 
 void cmap_go_up(cmap_params_t *p) {
-	trigger_go_up(p->control_ent);
+	trigger_go_up(ent_sptr(p->control_ent));
 }
 
 void cmap_go_down(cmap_params_t *p) {
-	trigger_go_down(p->control_ent);
+	trigger_go_down(ent_sptr(p->control_ent));
 }
 
 int key_to_direction(int key, int *x, int *y) {
@@ -1112,7 +1164,7 @@ int key_to_direction(int key, int *x, int *y) {
 void cmap_go(cmap_params_t *p) {
 	int x, y;
 	if (key_to_direction(p->key, &x, &y))
-		trigger_move(p->control_ent, x, y, 0);
+		trigger_move(ent_sptr(p->control_ent), x, y, 0);
 }
 
 void cmap_put(cmap_params_t *p) {
@@ -1124,7 +1176,7 @@ void cmap_put(cmap_params_t *p) {
 		fprintf(stderr, "Wrong argument to cmap_put\n");
 		return;
 	}
-	trigger_put(p->control_ent, p->args[0].data, p->args[1].data);
+	trigger_put(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p);
 }
 
 void cmap_drop(cmap_params_t *p) {
@@ -1136,7 +1188,7 @@ void cmap_drop(cmap_params_t *p) {
 		fprintf(stderr, "Wrong argument to cmap_drop\n");
 		return;
 	}
-	trigger_drop(p->control_ent, p->args[0].data);
+	trigger_drop(ent_sptr(p->control_ent), p->args[0].data);
 }
 
 void cmap_grab(cmap_params_t *p) {
@@ -1154,7 +1206,7 @@ void cmap_grab(cmap_params_t *p) {
 		effect_material_data *d = (void*)t->data;
 		mat_tag = d->tag;
 	}
-	trigger_grab(p->control_ent, p->args[0].data, p->args[1].data, mat_tag);
+	trigger_grab(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, mat_tag);
 }
 
 void cmap_open_door(cmap_params_t *p) {
@@ -1166,7 +1218,7 @@ void cmap_open_door(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_open_door\n");
 		return;
 	}
-	trigger_open_door(p->control_ent, p->args[0].data, p->args[1].data, 64);
+	trigger_open_door(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, 64);
 }
 
 void cmap_close_door(cmap_params_t *p) {
@@ -1178,7 +1230,7 @@ void cmap_close_door(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_open_door\n");
 		return;
 	}
-	trigger_open_door(p->control_ent, p->args[0].data, p->args[1].data, -64);
+	trigger_open_door(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, -64);
 }
 
 void cmap_throw(cmap_params_t *p) {
@@ -1191,10 +1243,10 @@ void cmap_throw(cmap_params_t *p) {
 		return;
 	}
 	effect_s *used_hand = p->args[0].data;
-	entity_s *target = p->args[1].data;
-	if (target != NULL) {
+	ent_ptr target = p->args[1].data_p;
+	if (target != ENT_NULL) {
 		int x, y, z, xd, yd, zd, xs, ys, zs;
-		if (entity_coords(target, &x, &y, &z) && entity_coords(p->control_ent, &xs, &ys, &zs)) {
+		if (entity_coords(target, &x, &y, &z) && entity_coords(ent_sptr(p->control_ent), &xs, &ys, &zs)) {
 			xd = x - xs;
 			yd = y - ys;
 			zd = z - zs;
@@ -1225,7 +1277,7 @@ void cmap_throw(cmap_params_t *p) {
 			if (maxdist < za * g)
 				maxdist = za * g;
 			maxdist *= 2;
-			trigger_throw(p->control_ent, used_hand, xd, yd, zd, maxdist);
+			trigger_throw(ent_sptr(p->control_ent), used_hand, xd, yd, zd, maxdist);
 		}
 	}
 }
@@ -1242,10 +1294,10 @@ void cmap_attack(cmap_params_t *p) {
 	attack_l_s *a = p->args[1].data;
 	uint32_t mat_tag = a->tool_mat_tag;
 	trigger_attack(
-		p->control_ent,
-		p->args[0].data,
+		ent_sptr(p->control_ent),
+		p->args[0].data_p,
 		a->type,
-		a->limb_entity,
+		a->limb_slot_tag,
 		mat_tag
 	);
 }
@@ -1259,7 +1311,7 @@ void cmap_fill_container(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_fill_container\n");
 		return;
 	}
-	trigger_fill_cont(p->control_ent, p->args[0].data, p->args[1].data);
+	trigger_fill_cont(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p);
 }
 
 void cmap_empty_container(cmap_params_t *p) {
@@ -1271,7 +1323,7 @@ void cmap_empty_container(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_empty_container\n");
 		return;
 	}
-	trigger_empty_cont(p->control_ent, p->args[0].data);
+	trigger_empty_cont(ent_sptr(p->control_ent), p->args[0].data);
 }
 
 void cmap_press_button(cmap_params_t *p) {
@@ -1283,7 +1335,7 @@ void cmap_press_button(cmap_params_t *p) {
 		fprintf(stderr, "Wrong arguments to cmap_press_button\n");
 		return;
 	}
-	trigger_press_button(p->control_ent, p->args[0].data, p->args[1].data, p->args[2].data);
+	trigger_press_button(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, p->args[2].data);
 }
 
 const cmap_t command_maps[] = {
@@ -1343,12 +1395,12 @@ typedef enum inputw_effect_sel_type {
 } inputw_effect_sel_type;
 
 typedef struct inputw_limb_s {
-	entity_s *ent;
+	ent_ptr ent;
 	effect_s *cur_sel;
 } inputw_limb_s;
 
 typedef struct inputw_effect_s {
-	entity_s *ent;
+	ent_ptr ent;
 	effect_s *cur_sel;
 	inputw_effect_sel_type type;
 } inputw_effect_s;
@@ -1406,7 +1458,7 @@ void input_queue_entity_select(void) {
 	inputw_queue[inputw_queue_n].type = INPUTW_ENTITY;
 	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
 	int x = 0, y = 0, z = 0;
-	if (entity_coords(gu_params.control_ent, &x, &y, &z)) {
+	if (entity_coords(ent_sptr(gu_params.control_ent), &x, &y, &z)) {
 		inputw_entity_s *e = &inputw_queue[inputw_queue_n].data_u.u_entity;
 		e->x = x;
 		e->y = y;
@@ -1599,6 +1651,8 @@ int inputw_entity_key(SDL_Keycode sym) {
 		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_ESCAPE) {
+		entity_l_s_free(e->cur_list);
+		e->cur_list = NULL;
 		inputw_clear();
 		return INP_M_REDRAW;
 	}
@@ -1673,7 +1727,7 @@ int inputw_limb_default_key(SDL_Keycode sym) {
 	if (sym == 'm') {
 		memset(&inputws[inputw_n - 1].data_u, 0, sizeof(inputws->data_u));
 		inputws[inputw_n - 1].type = INPUTW_LIMB;
-		inputws[inputw_n - 1].data_u.u_limb.ent = gu_params.control_ent;
+		inputws[inputw_n - 1].data_u.u_limb.ent = ent_sptr(gu_params.control_ent);
 		return INP_M_RELOAD;
 	}
 	if (sym == SDLK_RETURN) {
@@ -1829,28 +1883,26 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 		int yc = y;
 		entity_l_s *cur = inputws[inputw_n - 1].data_u.u_entity.cur_list;
 		while (cur != NULL) {
-			entity_s *cur_ent = cur->ent;
-			effect_s *e_rend = effect_by_type(cur_ent->effects, EF_RENDER);
-			effect_s *e_liq = effect_by_type(cur_ent->effects, EF_PH_LIQUID);
-			if (e_liq != NULL) {
-				effect_ph_liquid_data *liq_d = (void*)e_liq->data;
+			ent_ptr cur_ent = cur->ent;
+			effect_ph_liquid_data liq_d;
+			if (entity_load_effect(cur_ent, EF_PH_LIQUID, &liq_d)) {
 				snprintf(
 					buf, 32,
 					"~%s a:%d",
-					liq_d->type == LIQ_WATER ? "water" : "*",
-					liq_d->amount
+					liq_d.type == LIQ_WATER ? "water" : "*",
+					liq_d.amount
 				);
 			} else {
-				if (e_rend != NULL) {
-					effect_render_data *d = (void*)e_rend->data;
-					rend_char = d->chr;
+				effect_render_data d;
+				if (entity_load_effect(cur_ent, EF_RENDER, &d)) {
+					rend_char = d.chr;
 				} else {
 					rend_char = '\0';
 				}
 				if (rend_char != '\0') {
-					snprintf(buf, 32, "%p %c", cur_ent, rend_char);
+					snprintf(buf, 32, "%lu %c", cur_ent, rend_char);
 				} else {
-					snprintf(buf, 32, "%p", cur_ent);
+					snprintf(buf, 32, "%lu", cur_ent);
 				}
 			}
 			SDL_Color colo = {.r = 0, .g = 255, .b = 128};
@@ -1878,8 +1930,8 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 		while (e != NULL) {
 			if (e->type == EF_LIMB_SLOT) {
 				effect_limb_slot_data *d = (void*)e->data;
-				if (d->item != NULL && effect_by_type(d->item->effects, EF_LIMB_HAND) != NULL) {
-					snprintf(buf, 32, "%p %d", d->item, d->tag);
+				if (d->item != ENT_NULL && entity_has_effect(d->item, EF_LIMB_HAND)) {
+					snprintf(buf, 32, "%lu %d", d->item, d->tag);
 					SDL_Color colo = {.r = 0, .g = 255, .b = 128};
 					if (e != inputws[inputw_n - 1].data_u.u_limb.cur_sel) {
 						colo.g /= 2;
@@ -1903,7 +1955,7 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 	} break;
 	case INPUTW_EFFECT: {
 		int yc = y;
-		entity_s *ent = inputws[inputw_n - 1].data_u.u_effect.ent;
+		entity_s *ent = ent_aptr(inputws[inputw_n - 1].data_u.u_effect.ent);
 		effect_s *e = ent == NULL ? NULL : ent->effects;
 		while (e != NULL) {
 			if (e->type == EF_MATERIAL) {
@@ -1990,22 +2042,23 @@ void inputw_layer_enter(void) {
 	} break;
 	case INPUTW_LIMB: {
 		inputw_limb_s *e = &inputws[inputw_n - 1].data_u.u_limb;
-		if (e->ent != NULL)
-			e->cur_sel = effect_by_type(e->ent->effects, EF_LIMB_SLOT);
+		entity_s *t = ent_aptr(e->ent);
+		if (t != NULL)
+			e->cur_sel = effect_by_type(t->effects, EF_LIMB_SLOT);
 	} break;
 	case INPUTW_EFFECT: {
 		inputw_effect_s *e = &inputws[inputw_n - 1].data_u.u_effect;
-		e->ent = NULL;
+		e->ent = ENT_NULL;
 		if (gu_params.nargs != 0) {
 			switch (gu_params.args[gu_params.nargs - 1].type) {
 			case CMAP_ARG_ENTITY: {
-				e->ent = gu_params.args[gu_params.nargs - 1].data;
+				e->ent = gu_params.args[gu_params.nargs - 1].data_p;
 			} break;
 			case CMAP_ARG_EFFECT: {
 				effect_s *ef = gu_params.args[gu_params.nargs - 1].data;
 				if (ef->type == EF_LIMB_SLOT) {
 					effect_limb_slot_data *d = (void*)ef->data;
-					entity_s *t = d->item;
+					entity_s *t = ent_aptr(d->item);
 					if (t != NULL) {
 						effect_s *te = effect_by_type(t->effects, EF_LIMB_HAND);
 						if (te != NULL) {
@@ -2019,7 +2072,8 @@ void inputw_layer_enter(void) {
 			}
 			}
 		}
-		e->cur_sel = e->ent == NULL ? NULL : effect_by_type(e->ent->effects, EF_MATERIAL);
+		entity_s *t = ent_aptr(e->ent);
+		e->cur_sel = t == NULL ? NULL : effect_by_type(t->effects, EF_MATERIAL);
 	} break;
 	case INPUTW_ATTACK: {
 		inputw_attack_s *e = &inputws[inputw_n - 1].data_u.u_attack;
@@ -2027,7 +2081,7 @@ void inputw_layer_enter(void) {
 		if (gu_params.nargs != 0 && gu_params.args[gu_params.nargs - 1].type == CMAP_ARG_ENTITY) {
 			target = gu_params.args[gu_params.nargs - 1].data;
 		}
-		e->attacks = entity_list_attacks(gu_params.control_ent, target);
+		e->attacks = entity_list_attacks(ent_sptr(gu_params.control_ent), ent_sptr(target));
 		e->cur_sel = e->attacks;
 	} break;
 	default: {
@@ -2076,20 +2130,18 @@ int main(int argc, char **argv) {
 		FILE *stream = fopen(fname, "rb");
 		if (stream != NULL) {
 			g_entities = load_sector_list(stream);
-			for (int i = -1; i < 3; i ++) {
-				for (int j = -1; j < 3; j ++) {
-					sector_s *new_sect = o_malloc(sizeof(sector_s));
-					new_sect->x = i;
-					new_sect->y = j;
-					new_sect->z = 0;
-					new_sect->snext = NULL;
-					new_sect->sprev = NULL;
-					memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
-					if (g_sectors != NULL) {
-						new_sect->snext = g_sectors;
-						g_sectors->sprev = new_sect;
+			for (int i = -1; i < 70; i ++) {
+				for (int j = -1; j < 70; j ++) {
+					if (sector_get_sector(g_sectors, i, j, 0) == NULL) {
+						sector_s *new_sect = o_alloc_sector();
+						new_sect->x = i;
+						new_sect->y = j;
+						new_sect->z = 0;
+						new_sect->prio = rng_next(g_dice);
+						memset(new_sect->ch, 0, sizeof(new_sect->ch));
+						memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
+						g_sectors = sector_insert(g_sectors, new_sect);
 					}
-					g_sectors = new_sect;
 				}
 			}
 			entity_s *c_ent = g_entities;
@@ -2097,7 +2149,7 @@ int main(int argc, char **argv) {
 				c_ent = c_ent->next;
 			}
 			while (c_ent != NULL) {
-				attach_generic_entity(c_ent);
+				attach_generic_entity(ent_sptr(c_ent));
 				c_ent = c_ent->prev;
 			}
 		} else {
@@ -2140,10 +2192,19 @@ int main(int argc, char **argv) {
 			cam.blink++;
 			need_redraw = 1;
 		}
-		if (need_redraw) {
+		skip_tick = 0;
+		if (gu_things.skip_moving) {
+			if (
+				effect_by_type(control_ent->effects, EF_BLOCK_MOVE) != NULL ||
+				effect_by_type(control_ent->effects, EF_STAIR_MOVE) != NULL
+			) {
+				skip_tick = 1;
+			}
+		}
+		if (need_redraw && !skip_tick) {
 			{
 				int x, y, z;
-				if (entity_coords(control_ent, &x, &y, &z)) {
+				if (entity_coords(ent_sptr(control_ent), &x, &y, &z)) {
 					cam.z = z;
 					cam.x = x - 8;
 					cam.y = y - 8;
@@ -2160,15 +2221,6 @@ int main(int argc, char **argv) {
 			need_redraw = 0;
 		} else {
 			SDL_Delay(40);
-		}
-		skip_tick = 0;
-		if (gu_things.skip_moving) {
-			if (
-				effect_by_type(control_ent->effects, EF_BLOCK_MOVE) != NULL ||
-				effect_by_type(control_ent->effects, EF_STAIR_MOVE) != NULL
-			) {
-				skip_tick = 1;
-			}
 		}
 		SDL_Event evt;
 		int trigger_done = 0;
@@ -2266,6 +2318,7 @@ int main(int argc, char **argv) {
 			perror("Failed to open save file: ");
 		}
 	}
+	/* TODO redo, as the sectors are no longer in a linked list
 	{
 		sector_s *t = g_sectors;
 		while (t != NULL) {
@@ -2276,11 +2329,11 @@ int main(int argc, char **argv) {
 		t = g_sectors;
 		while (t != NULL) {
 			sector_s *nxt = t->snext;
-			o_free(t);
+			o_free_sector(t);
 			t = nxt;
 		}
 		g_sectors = NULL;
-	}
+	}*/
 	o_free(g_dice);
 	TTF_CloseFont(gr_font);
 	SDL_DestroyRenderer(rend);
