@@ -109,8 +109,8 @@ size_t decl_cap = 0, decl_n = 0;
 void add_decl_field(decl_t *d, int type_tag, const char *type_name, const char *name) {
 	decl_field_t *x = m_malloc(sizeof(decl_field_t));
 	x->type_tag = type_tag;
-	strncpy(x->type_name, type_name, MAX_NAME_LEN);
-	strncpy(x->name, name, MAX_NAME_LEN);
+	strncpy(x->type_name, type_name, MAX_NAME_LEN - 1);
+	strncpy(x->name, name, MAX_NAME_LEN - 1);
 	x->next = NULL;
 	if (d == NULL)
 		die("Fuck\n");
@@ -241,8 +241,8 @@ void put_struct(FILE *to, decl_t *d) {
 void put_loader(FILE *to, decl_t *d) {
 	fprintf(
 		to,
-		"void effect_scan_%s(effect_s *e, int n_ent, entity_s **a_ent, FILE *stream) {\n"
-		"\t(void)n_ent; (void)a_ent;\n"
+		"void effect_scan_%s(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {\n"
+		"\t(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;\n"
 		"\teffect_%s_data *d = (void*)e->data;\n",
 		d->name,
 		d->name
@@ -250,7 +250,18 @@ void put_loader(FILE *to, decl_t *d) {
 	decl_field_t *p = d->fields;
 	while (p != NULL) {
 		if (p->type_tag == ENT_R_TAG || p->type_tag == ENT_N_TAG) {
-			fprintf(to, "\t{ int t; fread(&t, sizeof(int), 1, stream); if (t == -1 || t >= n_ent) d->%s = ENT_NULL; else d->%s = ent_sptr(a_ent[t]); }\n", p->name, p->name);
+			fprintf(
+				to,
+				"\t{ int t; fread(&t, sizeof(int), 1, stream); if (t != -1 && t < n_ent) {d->%s = ent_sptr(a_ent[t]);}\n"
+				"\telse if (t != -1 && (t & STORED_CPTR_BIT)) { unsigned sec_nr = (t ^ STORED_CPTR_BIT) >> 9, co = t & 0x1FF;\n"
+				"\t\tif (sec_nr <= (unsigned)n_sec) d->%s = ent_cptr(a_sec[sec_nr], co >> 6, (co >> 3) & 7, co & 7);\n"
+				"\t\telse d->%s = ENT_NULL; }\n"
+				"\telse {d->%s = ENT_NULL;} }\n",
+				p->name,
+				p->name,
+				p->name,
+				p->name
+			);
 		} else if (p->type_tag == ENUM_TAG) {
 			fprintf(to, "\tfread(&d->%s, sizeof(int), 1, stream);\n", p->name);
 		} else {
@@ -276,8 +287,10 @@ void put_dumper(FILE *to, decl_t *d) {
 				to,
 				"\t{ int t; if (d->%s == ENT_NULL) {t = -1;}\n"
 				"\telse if (ent_aptr(d->%s) != NULL) {t = entity_get_index(ent_aptr(d->%s));}\n"
-				"\telse {fprintf(stderr, \"bad bad bad\\n\"); t = -1;}\n"
+				"\telse { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->%s, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}"
+				"\telse {fprintf(stderr, \"bad bad bad\\n\"); t = -1;} }\n"
 				"\tfwrite(&t, sizeof(int), 1, stream); }\n",
+				p->name,
 				p->name,
 				p->name,
 				p->name

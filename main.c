@@ -240,34 +240,11 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 void spawn_simple_floor_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
-	{
-		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		effect_ph_block_data *d = (void *)ef_ph->data;
-		d->prop = PB_FLOOR;
-		d->x = x;
-		d->y = y;
-		d->z = z;
-		effect_prepend(new_ent, ef_ph);
-	}
-	{
-		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		effect_render_data *d = (void *)ef_rend->data;
-		d->r = 0;
-		d->g = 255;
-		d->b = 0;
-		d->a = 128;
-		d->chr = '_';
-		effect_prepend(new_ent, ef_rend);
-	}
-	{
-		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		effect_material_data *d = (void *)ef_mat->data;
-		d->type = MAT_WOOD;
-		d->dur = 10;
-		d->prop = 0;
-		d->tag = 0;
-		effect_prepend(new_ent, ef_mat);
-	}
+	new_ent->common_type = CT_FLOOR;
+	((int*)new_ent->common_data)[0] = x;
+	((int*)new_ent->common_data)[1] = y;
+	((int*)new_ent->common_data)[2] = z;
+	((int*)new_ent->common_data)[3] = 10;
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(ent_sptr(new_ent));
@@ -329,34 +306,11 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 void spawn_simple_wall_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
-	{
-		effect_s *ef_ph = alloc_effect(EF_PH_BLOCK);
-		effect_ph_block_data *d = (void *)ef_ph->data;
-		d->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
-		d->x = x;
-		d->y = y;
-		d->z = z;
-		effect_prepend(new_ent, ef_ph);
-	}
-	{
-		effect_s *ef_rend = alloc_effect(EF_RENDER);
-		effect_render_data *d = (void *)ef_rend->data;
-		d->r = 0;
-		d->g = 255;
-		d->b = 0;
-		d->a = 128;
-		d->chr = '#';
-		effect_prepend(new_ent, ef_rend);
-	}
-	{
-		effect_s *ef_mat = alloc_effect(EF_MATERIAL);
-		effect_material_data *d = (void *)ef_mat->data;
-		d->type = MAT_WOOD;
-		d->dur = 10;
-		d->prop = 0;
-		d->tag = 0;
-		effect_prepend(new_ent, ef_mat);
-	}
+	new_ent->common_type = CT_WALL;
+	((int*)new_ent->common_data)[0] = x;
+	((int*)new_ent->common_data)[1] = y;
+	((int*)new_ent->common_data)[2] = z;
+	((int*)new_ent->common_data)[3] = 10;
 	entity_prepend(g_entities, new_ent);
 	g_entities = new_ent;
 	attach_generic_entity(ent_sptr(new_ent));

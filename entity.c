@@ -250,18 +250,32 @@ int sector_get_block_slope(sector_s *s, int x, int y, int z) {
 
 int entity_has_effect(ent_ptr sp, effect_type t) {
 	entity_s *s = ent_aptr(sp);
-	if (s == NULL)
-		return 0;
-	switch (s->common_type) {
-	case CT_FLOOR:
-	case CT_WALL: {
-		if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
-			return 1;
-	} break;
-	case CT_NONE:
-		break;
+	if (s != NULL) {
+		switch (s->common_type) {
+		case CT_FLOOR:
+		case CT_WALL: {
+			if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
+				return 1;
+		} break;
+		case CT_NONE:
+			break;
+		}
+		return effect_by_type(s->effects, t) != NULL;
 	}
-	return effect_by_type(s->effects, t) != NULL;
+	sector_s *sec;
+	int x, y, z;
+	if ((sec = ent_acptr(sp, &x, &y, &z)) != NULL) {
+		switch (sec->block_blocks[x][y][z].type) {
+		case BLK_FLOOR:
+		case BLK_WALL: {
+			if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
+				return 1;
+		} break;
+		default:
+			return 0;
+		}
+	}
+	return 0;
 }
 
 int entity_load_effect(ent_ptr sp, effect_type t, void *d) {
@@ -2035,6 +2049,7 @@ void dump_sector(sector_s *s, FILE *stream) {
 }
 
 void dump_sector_bslice(sector_s *s, FILE *stream) {
+	fwrite(&s->stored_id, sizeof(int), 1, stream);
 	fwrite(&s->x, sizeof(int), 1, stream);
 	fwrite(&s->y, sizeof(int), 1, stream);
 	fwrite(&s->z, sizeof(int), 1, stream);
@@ -2083,9 +2098,10 @@ void entity_enumerate(entity_s *s, int *ent_id) {
 	}
 }
 
-void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id) {
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id, int *sector_id) {
 	if (s == NULL)
 		return;
+	++*sector_id;
 	for (int i = 0; i < G_SECTOR_SIZE; i ++) {
 		for (int j = 0; j < G_SECTOR_SIZE; j ++) {
 			for (int k = 0; k < G_SECTOR_SIZE; k ++) {
@@ -2097,9 +2113,10 @@ void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id) {
 			}
 		}
 	}
+	s->stored_id = *bslice_id;
 	++*bslice_id;
-	sector_enumerate_rec(s->ch[0], ent_id, bslice_id);
-	sector_enumerate_rec(s->ch[1], ent_id, bslice_id);
+	sector_enumerate_rec(s->ch[0], ent_id, bslice_id, sector_id);
+	sector_enumerate_rec(s->ch[1], ent_id, bslice_id, sector_id);
 }
 
 void sector_dump_rec(sector_s *s, FILE *stream) {
@@ -2119,12 +2136,13 @@ void sector_dump_bslice_rec(sector_s *s, FILE *stream) {
 }
 
 void dump_sector_list(sector_s *s, FILE *stream) {
-	int ent_id = 0, bslice_id = 0;
-	sector_enumerate_rec(s, &ent_id, &bslice_id);
+	int ent_id = 0, bslice_id = 0, sector_id = 0;
+	sector_enumerate_rec(s, &ent_id, &bslice_id, &sector_id);
 	fwrite(&ent_id, sizeof(int), 1, stream);
 	fwrite(&bslice_id, sizeof(int), 1, stream);
-	sector_dump_rec(s, stream);
+	fwrite(&sector_id, sizeof(int), 1, stream);
 	sector_dump_bslice_rec(s, stream);
+	sector_dump_rec(s, stream);
 }
 
 void unload_entity(entity_s *s) {
@@ -2147,9 +2165,14 @@ void unload_entity(entity_s *s) {
 }
 
 entity_s *load_sector_list(FILE *stream) {
-	int n_ent, n_bslices;
+	int n_ent, n_bslices, n_sectors;
 	fread(&n_ent, sizeof(int), 1, stream);
 	fread(&n_bslices, sizeof(int), 1, stream);
+	fread(&n_sectors, sizeof(int), 1, stream);
+	sector_s **a_sec = o_malloc(sizeof(sector_s*) * n_sectors);
+	for (int i = 0; i < n_bslices; i++) {
+		scan_bslice(stream, a_sec, n_sectors);
+	}
 	entity_s **a_ent = o_malloc(sizeof(entity_s*) * n_ent);
 	entity_s *prev_ent = NULL;
 	for (int i = 0; i < n_ent; i ++) {
@@ -2162,28 +2185,25 @@ entity_s *load_sector_list(FILE *stream) {
 		a_ent[i]->next = a_ent[i + 1];
 	}
 	for (int i = 0; i < n_ent; i ++) {
-		scan_entity(n_ent, a_ent, stream);
-	}
-	for (int i = 0; i < n_bslices; i++) {
-		scan_bslice(stream);
+		scan_entity(n_ent, a_ent, n_sectors, a_sec, stream);
 	}
 	entity_s *t = a_ent[0];
 	o_free(a_ent);
 	return t;
 }
 
-effect_s* scan_effect(int n_ent, entity_s **a_ent, FILE *stream) {
+effect_s* scan_effect(int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	int type;
 	fread(&type, sizeof(int), 1, stream);
 	effect_s *eff = alloc_effect(type);
 	effect_scan_t scanner = effect_scan_functions[type];
 	if (scanner != NULL) {
-		scanner(eff, n_ent, a_ent, stream);
+		scanner(eff, n_ent, a_ent, n_sec, a_sec, stream);
 	}
 	return eff;
 }
 
-entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
+entity_s* scan_entity(int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	int id;
 	fread(&id, sizeof(int), 1, stream);
 	if (id >= n_ent) {
@@ -2200,7 +2220,7 @@ entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
 		fread(&id_eff, sizeof(int), 1, stream);
 		effect_s *la = a_ent[id]->effects;
 		for (int i = 0; i < id_eff; i ++) {
-			effect_s *c = scan_effect(n_ent, a_ent, stream);
+			effect_s *c = scan_effect(n_ent, a_ent, n_sec, a_sec, stream);
 			c->prev = la;
 			c->next = NULL;
 			if (la != NULL) {
@@ -2214,12 +2234,14 @@ entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream) {
 	}
 }
 
-void scan_bslice(FILE *stream) {
-	int co[3];
+void scan_bslice(FILE *stream, sector_s **id_tags, int n_id_tags) {
+	int co[3], id;
+	fread(&id, sizeof(int), 1, stream);
 	fread(co, sizeof(int), 3, stream);
 	sector_s *sec = sector_get_sector(g_sectors, co[0], co[1], co[2]);
 	if (sec == NULL) {
 		sec = o_alloc_sector();
+		sec->stored_id = id;
 		sec->x = co[0];
 		sec->y = co[1];
 		sec->z = co[2];
@@ -2229,6 +2251,9 @@ void scan_bslice(FILE *stream) {
 		memset(sec->block_entities, 0, sizeof(sec->block_entities));
 		memset(sec->block_blocks, 0, sizeof(sec->block_blocks));
 		g_sectors = sector_insert(g_sectors, sec);
+		if (id < n_id_tags) {
+			id_tags[id] = sec;
+		}
 	}
 	int nskip;
 	int c = 0;
@@ -2377,6 +2402,8 @@ entity_l_s* entity_enlist(entity_s *s) {
 }
 
 entity_l_s* sector_get_block_entities_indirect(sector_s *s, int x, int y, int z) {
+	if (s == NULL)
+		return NULL;
 	entity_l_s *el_orig = sector_get_block_entities(s, x, y, z);
 	entity_l_s *el;
 	if (el_orig == NULL) {
@@ -2820,11 +2847,11 @@ void dmg_deal(ent_ptr s, damage_type t, int v) {
 				dmg_val *= 5;
 			mat_d.dur -= dmg_val;
 NO_DMG:
+			entity_store_effect(s, EF_MATERIAL, &mat_d);
 			if (mat_d.dur <= 0) {
 				effect_s *new_ef = alloc_effect(EF_B_NONEXISTENT);
 				effect_prepend(ent_aptr(s), new_ef);
 			}
-			entity_store_effect(s, EF_MATERIAL, &mat_d);
 		}
 	}
 	sector_s *sec;

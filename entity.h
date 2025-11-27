@@ -11,6 +11,8 @@
 #define G_MOVE_START_DELAY 128
 #define G_PUDDLE_MAX 64
 
+#define STORED_CPTR_BIT (1<<30)
+
 #define ENT_NULL 0UL
 typedef uint64_t ent_ptr;
 
@@ -118,6 +120,7 @@ typedef struct block_s {
 typedef struct sector_s {
 	// Sectors are stored in a cartesian tree
 	struct sector_s *ch[2];
+	int stored_id;
 	int prio;
 	int x;
 	int y;
@@ -137,7 +140,7 @@ typedef struct attack_l_s {
 } attack_l_s;
 
 typedef void (*effect_dump_t)(struct effect_s *e, FILE *stream);
-typedef void (*effect_scan_t)(struct effect_s *e, int n_ent, entity_s **a_ent, FILE *stream);
+typedef void (*effect_scan_t)(struct effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream);
 typedef int (*effect_rem_t)(struct entity_s *s, struct effect_s *e);
 
 extern int effect_data_size[];
@@ -243,16 +246,16 @@ void dump_sector(sector_s *s, FILE *stream);
 void dump_sector_bslice(sector_s *s, FILE *stream);
 void entity_enumerate(entity_s *s, int *ent_id);
 
-void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id);
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id, int *sector_id);
 void sector_dump_bslice_rec(sector_s *s, FILE *stream);
 void sector_dump_rec(sector_s *s, FILE *stream);
 void dump_sector_list(sector_s *s, FILE *stream);
 
 void unload_entity(entity_s *s);
 entity_s *load_sector_list(FILE *stream);
-effect_s* scan_effect(int n_ent, entity_s **a_ent, FILE *stream);
-entity_s* scan_entity(int n_ent, entity_s **a_ent, FILE *stream);
-void scan_bslice(FILE *stream);
+effect_s* scan_effect(int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream);
+entity_s* scan_entity(int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream);
+void scan_bslice(FILE *stream, sector_s **id_tags, int n_id_tags);
 void unload_sector(sector_s *s);
 
 int effect_rem_ph_item(entity_s *s, effect_s *e);
