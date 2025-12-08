@@ -45,7 +45,8 @@ void effect_dump_ph_item(effect_s *e, FILE *stream) {
 	fwrite(&d->weight, sizeof(int), 1, stream);
 	{ int t; if (d->parent == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->parent) != NULL) {t = entity_get_index(ent_aptr(d->parent));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->parent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->parent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->parent_type, sizeof(parent_ref_type), 1, stream);
 }
@@ -127,7 +128,8 @@ void effect_dump_limb_slot(effect_s *e, FILE *stream) {
 	effect_limb_slot_data *d = (void*)e->data;
 	{ int t; if (d->item == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->item) != NULL) {t = entity_get_index(ent_aptr(d->item));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->tag, sizeof(uint32_t), 1, stream);
 }
@@ -152,7 +154,8 @@ void effect_dump_limb_hand(effect_s *e, FILE *stream) {
 	fwrite(&d->grab_type, sizeof(int), 1, stream);
 	{ int t; if (d->item == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->item) != NULL) {t = entity_get_index(ent_aptr(d->item));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_limb_hand(struct entity_s *s, effect_s *e) {
@@ -195,7 +198,8 @@ void effect_dump_aim(effect_s *e, FILE *stream) {
 	fwrite(&d->z, sizeof(int), 1, stream);
 	{ int t; if (d->ent == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_aim(struct entity_s *s, effect_s *e) {
@@ -221,7 +225,8 @@ void effect_dump_attack(effect_s *e, FILE *stream) {
 	effect_attack_data *d = (void*)e->data;
 	{ int t; if (d->ent == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->limb_tag, sizeof(uint32_t), 1, stream);
 	fwrite(&d->type, sizeof(int), 1, stream);
@@ -247,7 +252,8 @@ void effect_dump_table_item(effect_s *e, FILE *stream) {
 	effect_table_item_data *d = (void*)e->data;
 	{ int t; if (d->item == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->item) != NULL) {t = entity_get_index(ent_aptr(d->item));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_table_item(struct entity_s *s, effect_s *e) {
@@ -270,7 +276,8 @@ void effect_dump_s_bump(effect_s *e, FILE *stream) {
 	effect_s_bump_data *d = (void*)e->data;
 	{ int t; if (d->ent == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->force, sizeof(int), 1, stream);
 }
@@ -327,7 +334,8 @@ void effect_dump_m_grab(effect_s *e, FILE *stream) {
 	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->ent == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
@@ -361,7 +369,8 @@ void effect_dump_m_put(effect_s *e, FILE *stream) {
 	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->where == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->where) != NULL) {t = entity_get_index(ent_aptr(d->where));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->where, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->where, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_m_put(struct entity_s *s, effect_s *e) {
@@ -446,7 +455,8 @@ void effect_dump_container_item(effect_s *e, FILE *stream) {
 	effect_container_item_data *d = (void*)e->data;
 	{ int t; if (d->item == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->item) != NULL) {t = entity_get_index(ent_aptr(d->item));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->item, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_container_item(struct entity_s *s, effect_s *e) {
@@ -466,6 +476,33 @@ void effect_dump_wet(effect_s *e, FILE *stream) {
 	fwrite(&d->type, sizeof(int), 1, stream);
 	fwrite(&d->amount, sizeof(int), 1, stream);
 }
+void effect_scan_wet_block(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_wet_block_data *d = (void*)e->data;
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t != -1 && t < n_ent) {d->ent = ent_sptr(a_ent[t]);}
+	else if (t != -1 && (t & STORED_CPTR_BIT)) { unsigned sec_nr = (t ^ STORED_CPTR_BIT) >> 9, co = t & 0x1FF;
+		if (sec_nr <= (unsigned)n_sec) d->ent = ent_cptr(a_sec[sec_nr], co >> 6, (co >> 3) & 7, co & 7);
+		else d->ent = ENT_NULL; }
+	else {d->ent = ENT_NULL;} }
+	fread(&d->type, sizeof(int), 1, stream);
+	fread(&d->amount, sizeof(int), 1, stream);
+}
+void effect_dump_wet_block(effect_s *e, FILE *stream) {
+	effect_wet_block_data *d = (void*)e->data;
+	{ int t; if (d->ent == ENT_NULL) {t = -1;}
+	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	fwrite(&t, sizeof(int), 1, stream); }
+	fwrite(&d->type, sizeof(int), 1, stream);
+	fwrite(&d->amount, sizeof(int), 1, stream);
+}
+int effect_rem_wet_block(struct entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_wet_block_data *d = (void*)e->data;
+	if (d->ent == ENT_NULL || entity_has_effect(d->ent, EF_B_NONEXISTENT)) return 1;
+	return 0;
+}
 void effect_scan_m_fill_cont(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
 	effect_m_fill_cont_data *d = (void*)e->data;
@@ -481,7 +518,8 @@ void effect_dump_m_fill_cont(effect_s *e, FILE *stream) {
 	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->target == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->target) != NULL) {t = entity_get_index(ent_aptr(d->target));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_m_fill_cont(struct entity_s *s, effect_s *e) {
@@ -515,7 +553,8 @@ void effect_dump_m_press_button(effect_s *e, FILE *stream) {
 	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->target == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->target) != NULL) {t = entity_get_index(ent_aptr(d->target));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 	fwrite(&d->mat_tag, sizeof(uint32_t), 1, stream);
 }
@@ -551,7 +590,8 @@ void effect_dump_m_open_door(effect_s *e, FILE *stream) {
 	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
 	{ int t; if (d->target == ENT_NULL) {t = -1;}
 	else if (ent_aptr(d->target) != NULL) {t = entity_get_index(ent_aptr(d->target));}
-	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->target, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
 	fwrite(&t, sizeof(int), 1, stream); }
 }
 int effect_rem_m_open_door(struct entity_s *s, effect_s *e) {
@@ -568,6 +608,46 @@ void effect_scan_door(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, secto
 void effect_dump_door(effect_s *e, FILE *stream) {
 	effect_door_data *d = (void*)e->data;
 	fwrite(&d->opened, sizeof(int), 1, stream);
+}
+void effect_scan_plant(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_plant_data *d = (void*)e->data;
+	fread(&d->plant_type, sizeof(int), 1, stream);
+	fread(&d->stored_energy, sizeof(int), 1, stream);
+	fread(&d->stored_water, sizeof(int), 1, stream);
+	fread(&d->growth, sizeof(int), 1, stream);
+}
+void effect_dump_plant(effect_s *e, FILE *stream) {
+	effect_plant_data *d = (void*)e->data;
+	fwrite(&d->plant_type, sizeof(int), 1, stream);
+	fwrite(&d->stored_energy, sizeof(int), 1, stream);
+	fwrite(&d->stored_water, sizeof(int), 1, stream);
+	fwrite(&d->growth, sizeof(int), 1, stream);
+}
+void effect_scan_rooted(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_rooted_data *d = (void*)e->data;
+	fread(&d->dur, sizeof(int), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t != -1 && t < n_ent) {d->ent = ent_sptr(a_ent[t]);}
+	else if (t != -1 && (t & STORED_CPTR_BIT)) { unsigned sec_nr = (t ^ STORED_CPTR_BIT) >> 9, co = t & 0x1FF;
+		if (sec_nr <= (unsigned)n_sec) d->ent = ent_cptr(a_sec[sec_nr], co >> 6, (co >> 3) & 7, co & 7);
+		else d->ent = ENT_NULL; }
+	else {d->ent = ENT_NULL;} }
+}
+void effect_dump_rooted(effect_s *e, FILE *stream) {
+	effect_rooted_data *d = (void*)e->data;
+	fwrite(&d->dur, sizeof(int), 1, stream);
+	{ int t; if (d->ent == ENT_NULL) {t = -1;}
+	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_rooted(struct entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_rooted_data *d = (void*)e->data;
+	if (d->ent == ENT_NULL || entity_has_effect(d->ent, EF_B_NONEXISTENT)) return 1;
+	return 0;
 }
 
 int effect_data_size[] = {
@@ -605,12 +685,15 @@ int effect_data_size[] = {
 	[EF_CONTAINER] = sizeof(effect_container_data),
 	[EF_CONTAINER_ITEM] = sizeof(effect_container_item_data),
 	[EF_WET] = sizeof(effect_wet_data),
+	[EF_WET_BLOCK] = sizeof(effect_wet_block_data),
 	[EF_M_FILL_CONT] = sizeof(effect_m_fill_cont_data),
 	[EF_M_EMPTY_CONT] = sizeof(effect_m_empty_cont_data),
 	[EF_M_PRESS_BUTTON] = sizeof(effect_m_press_button_data),
 	[EF_S_PRESS_BUTTON] = sizeof(effect_s_press_button_data),
 	[EF_M_OPEN_DOOR] = sizeof(effect_m_open_door_data),
 	[EF_DOOR] = sizeof(effect_door_data),
+	[EF_PLANT] = sizeof(effect_plant_data),
+	[EF_ROOTED] = sizeof(effect_rooted_data),
 };
 
 effect_dump_t effect_dump_functions[] = {
@@ -648,12 +731,15 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_CONTAINER] = effect_dump_container,
 	[EF_CONTAINER_ITEM] = effect_dump_container_item,
 	[EF_WET] = effect_dump_wet,
+	[EF_WET_BLOCK] = effect_dump_wet_block,
 	[EF_M_FILL_CONT] = effect_dump_m_fill_cont,
 	[EF_M_EMPTY_CONT] = effect_dump_m_empty_cont,
 	[EF_M_PRESS_BUTTON] = effect_dump_m_press_button,
 	[EF_S_PRESS_BUTTON] = effect_dump_s_press_button,
 	[EF_M_OPEN_DOOR] = effect_dump_m_open_door,
 	[EF_DOOR] = effect_dump_door,
+	[EF_PLANT] = effect_dump_plant,
+	[EF_ROOTED] = effect_dump_rooted,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -691,12 +777,15 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_CONTAINER] = effect_scan_container,
 	[EF_CONTAINER_ITEM] = effect_scan_container_item,
 	[EF_WET] = effect_scan_wet,
+	[EF_WET_BLOCK] = effect_scan_wet_block,
 	[EF_M_FILL_CONT] = effect_scan_m_fill_cont,
 	[EF_M_EMPTY_CONT] = effect_scan_m_empty_cont,
 	[EF_M_PRESS_BUTTON] = effect_scan_m_press_button,
 	[EF_S_PRESS_BUTTON] = effect_scan_s_press_button,
 	[EF_M_OPEN_DOOR] = effect_scan_m_open_door,
 	[EF_DOOR] = effect_scan_door,
+	[EF_PLANT] = effect_scan_plant,
+	[EF_ROOTED] = effect_scan_rooted,
 };
 
 effect_rem_t effect_rem_functions[] = {
@@ -734,10 +823,13 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_CONTAINER] = NULL,
 	[EF_CONTAINER_ITEM] = effect_rem_container_item,
 	[EF_WET] = NULL,
+	[EF_WET_BLOCK] = effect_rem_wet_block,
 	[EF_M_FILL_CONT] = effect_rem_m_fill_cont,
 	[EF_M_EMPTY_CONT] = NULL,
 	[EF_M_PRESS_BUTTON] = effect_rem_m_press_button,
 	[EF_S_PRESS_BUTTON] = NULL,
 	[EF_M_OPEN_DOOR] = effect_rem_m_open_door,
 	[EF_DOOR] = NULL,
+	[EF_PLANT] = NULL,
+	[EF_ROOTED] = effect_rem_rooted,
 };

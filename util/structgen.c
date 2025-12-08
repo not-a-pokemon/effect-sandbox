@@ -287,7 +287,7 @@ void put_dumper(FILE *to, decl_t *d) {
 				to,
 				"\t{ int t; if (d->%s == ENT_NULL) {t = -1;}\n"
 				"\telse if (ent_aptr(d->%s) != NULL) {t = entity_get_index(ent_aptr(d->%s));}\n"
-				"\telse { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->%s, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}"
+				"\telse { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->%s, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}\n"
 				"\telse {fprintf(stderr, \"bad bad bad\\n\"); t = -1;} }\n"
 				"\tfwrite(&t, sizeof(int), 1, stream); }\n",
 				p->name,

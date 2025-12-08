@@ -2,6 +2,7 @@
 default: efsa
 
 CFLAGS+=-Wall -Wextra
+CFLAGS+=-O2
 # Use for testing only
 # CFLAGS+=-ftrivial-auto-var-init=pattern
 LDFLAGS!=pkg-config --libs sdl2 SDL2_ttf

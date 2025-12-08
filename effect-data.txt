@@ -54,7 +54,6 @@ decl-s m_throw
 	int z
 	int speed :
 
-#/ decl-s r_touch_rng_tp 'empty :
 #/ decl-s r_touch_shoot_projectile 'empty :
 decl-s r_bottle_dispenser
 	uint32_t mat_tag :
@@ -73,9 +72,17 @@ decl-s container
 	int capacity :
 decl-s container_item
 	ent-r item :
+
+#/ TODO
 decl-s wet
 	'E liquid_type type
 	int amount :
+
+decl-s wet_block
+	ent-r ent
+	'E liquid_type type
+	int amount :
+
 decl-s m_fill_cont
 	uint32_t hand_tag
 	ent-r target :
@@ -95,3 +102,14 @@ decl-s m_open_door
 	ent-r target :
 decl-s door
 	int opened :
+
+decl-s plant
+	int plant_type #/ A tree, ivy plant, etc.
+	int stored_energy
+	int stored_water
+	int growth :
+
+#/ An object is held in place by its connection to a static block
+decl-s rooted
+	int dur
+	ent-r ent :

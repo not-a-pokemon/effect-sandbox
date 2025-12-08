@@ -23,10 +23,26 @@ void rng_init(rng_state_s *dice) {
 		dice->table[i] = rng_table_p[i];
 	}
 	dice->index = 0;
+	dice->index1 = 0;
+	dice->index2 = 0;
+	dice->index3 = 0;
 }
 
 uint32_t rng_next(rng_state_s *dice) {
-	dice->index ++;
+	dice->index++;
 	dice->index &= 0xFF;
 	return dice->table[dice->index];
+}
+
+uint64_t rng_bigrange(rng_state_s *dice) {
+	// TODO make it better than this
+	dice->index++;
+	dice->index &= 0xFF;
+	dice->index1 += 3;
+	dice->index1 &= 0xFF;
+	dice->index2 += 5;
+	dice->index2 &= 0xFF;
+	dice->index3 += 7;
+	dice->index3 &= 0xFF;
+	return dice->table[dice->index] ^ (dice->table[dice->index1] << 8) ^ (dice->table[dice->index2] << 16) ^ (dice->table[dice->index3] << 24);
 }

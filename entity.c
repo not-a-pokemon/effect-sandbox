@@ -252,6 +252,7 @@ int entity_has_effect(ent_ptr sp, effect_type t) {
 	entity_s *s = ent_aptr(sp);
 	if (s != NULL) {
 		switch (s->common_type) {
+		case CT_SOIL_BLOCK:
 		case CT_FLOOR:
 		case CT_WALL: {
 			if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
@@ -266,6 +267,7 @@ int entity_has_effect(ent_ptr sp, effect_type t) {
 	int x, y, z;
 	if ((sec = ent_acptr(sp, &x, &y, &z)) != NULL) {
 		switch (sec->block_blocks[x][y][z].type) {
+		case BLK_SOIL:
 		case BLK_FLOOR:
 		case BLK_WALL: {
 			if (t == EF_PH_BLOCK || t == EF_RENDER || t == EF_MATERIAL)
@@ -338,6 +340,34 @@ int entity_load_effect(ent_ptr sp, effect_type t, void *d) {
 				return 1;
 			}
 		} break;
+		case CT_SOIL_BLOCK: {
+			if (t == EF_PH_BLOCK) {
+				effect_ph_block_data *rd = d;
+				rd->x = ((int*)s->common_data)[0];
+				rd->y = ((int*)s->common_data)[1];
+				rd->z = ((int*)s->common_data)[2];
+				rd->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
+				return 1;
+			}
+			if (t == EF_RENDER) {
+				effect_render_data *rd = d;
+				rd->r = 255;
+				rd->g = 181;
+				rd->b = 15;
+				rd->a = 128;
+				rd->chr = '#';
+				return 1;
+			}
+			if (t == EF_MATERIAL) {
+				effect_material_data *rd = d;
+				rd->type = MAT_SOIL;
+				rd->dur = ((int*)s->common_data)[3];
+				rd->prop = 0;
+				rd->tag = 0;
+				return 1;
+			}
+			return 0;
+		} break;
 		case CT_NONE:
 			break;
 		}
@@ -407,6 +437,33 @@ int entity_load_effect(ent_ptr sp, effect_type t, void *d) {
 				default: return 0;
 				}
 			} break;
+			case BLK_SOIL: {
+				switch (t) {
+				case EF_PH_BLOCK: {
+					effect_ph_block_data *rd = d;
+					rd->x = x + sec->x * G_SECTOR_SIZE;
+					rd->y = y + sec->y * G_SECTOR_SIZE;
+					rd->z = z + sec->z * G_SECTOR_SIZE;
+					rd->prop = PB_FLOOR_UP | PB_BLOCK_MOVEMENT;
+				} return 1;
+				case EF_RENDER: {
+					effect_render_data *rd = d;
+					rd->r = 255;
+					rd->g = 181;
+					rd->b = 15;
+					rd->a = 128;
+					rd->chr = '#';
+				} return 1;
+				case EF_MATERIAL: {
+					effect_material_data *rd = d;
+					rd->type = MAT_SOIL;
+					rd->dur = blk.dur;
+					rd->prop = 0;
+					rd->tag = 0;
+				} return 1;
+				default: return 0;
+				}
+			} break;
 			}
 		}
 		return 0;
@@ -419,6 +476,7 @@ int entity_store_effect(ent_ptr sp, effect_type t, void *d) {
 	if (s == NULL)
 		return 0;
 	switch (s->common_type) {
+	case CT_SOIL_BLOCK:
 	case CT_FLOOR:
 	case CT_WALL: {
 		if (t == EF_PH_BLOCK) {
@@ -495,6 +553,64 @@ effect_s* prev_effect_by_type(effect_s *s, effect_type t) {
 }
 
 void apply_triggers(ent_ptr s) {
+	{
+		// TODO is this a trigger?
+		effect_plant_data plant_d;
+		if (entity_load_effect(s, EF_PLANT, &plant_d)) {
+			effect_rooted_data root_d;
+			if (entity_load_effect(s, EF_ROOTED, &root_d)) {
+				// TODO limit the absorption both in rate and total amount
+				// TODO absorb water from rooted ground
+				// If 's' is rooted in a block, iterate over WET_BLOCK entities of xyz
+				// Otherwise iterate over effects of root_d.ent
+				sector_s *sec;
+				int x, y, z;
+				entity_s *t;
+				if ((sec = ent_acptr(root_d.ent, &x, &y, &z)) != NULL) {
+					for (entity_l_s *l = sector_get_block_entities(sec, x, y, z); l != NULL; l = l->next) {
+						effect_wet_block_data wd;
+						if (entity_load_effect(l->ent, EF_WET_BLOCK, &wd)) {
+							// TODO unfix the amount
+							if (wd.amount >= 1) {
+								wd.amount--;
+								plant_d.stored_water++;
+								entity_store_effect(l->ent, EF_WET_BLOCK, &wd);
+							}
+						}
+					}
+				} else if ((t = ent_aptr(root_d.ent)) != NULL) {
+					effect_s *e = t->effects;
+					while (e != NULL) {
+						if (e->type == EF_WET) {
+							effect_wet_block_data *d = (void*)e->data;
+							// TODO make it not only water?
+							if (d->type == LIQ_WATER) {
+								// TODO make the amount not fixed, possibly add a ef_rooted property?
+								d->amount--;
+								plant_d.stored_water++;
+								if (d->amount == 0) {
+									effect_s *nxt = e->next;
+									effect_unlink(t, e);
+									e = nxt;
+									goto NO_NEXT;
+								}
+							}
+						}
+						e = e->next;
+NO_NEXT:
+						;
+					}
+				} else {
+					// this shouldn't be reached
+				}
+			}
+			// TODO calculate sunlight
+			if (plant_d.growth < -10) {
+				// TODO plant dies
+			}
+			entity_store_effect(s, EF_PLANT, &plant_d);
+		}
+	}
 	{
 		effect_a_pressure_plate_data press_d;
 		if (entity_load_effect(s, EF_A_PRESSURE_PLATE, &press_d)) {
@@ -980,6 +1096,9 @@ void attach_generic_entity(ent_ptr s) {
 		if (d.parent != ENT_NULL) {
 			has_parent = 1;
 		}
+	}
+	if (has_parent && entity_has_effect(s, EF_WET_BLOCK) && entity_coords(s, &x, &y, &z)) {
+		attach_entity(s, x, y, z);
 	}
 	if (!has_parent && !entity_has_effect(s, EF_NOPHYSICS) && entity_coords(s, &x, &y, &z)) {
 		attach_entity(s, x, y, z);
@@ -1523,6 +1642,95 @@ void apply_liquid_movement(ent_ptr sp) {
 		attach_generic_entity(sp);
 		return;
 	}
+	{
+		int tx = x, ty = y, tz = z - 1, cx = 0, cy = 0, cz = 0;
+		coord_normalize(&tx, &cx);
+		coord_normalize(&ty, &cy);
+		coord_normalize(&tz, &cz);
+		sector_s *sec = sector_get_sector(g_sectors, cx, cy, cz);
+		if (sec != NULL) {
+			if (sec->block_blocks[tx][ty][tz].type != BLK_EMPTY) {
+				effect_material_data mat_d;
+				effect_ph_block_data blk_d;
+				if (
+					entity_load_effect(ent_cptr(sec, tx, ty, tz), EF_PH_BLOCK, &blk_d) &&
+					(blk_d.prop & PB_FLOOR_UP) &&
+					entity_load_effect(ent_cptr(sec, tx, ty, tz), EF_MATERIAL, &mat_d) &&
+					mat_d.type == MAT_SOIL // TODO not only soil
+				) {
+					entity_s *w = NULL;
+					effect_wet_block_data wet_d;
+					for (entity_l_s *l = sector_get_block_entities(sec, tx, ty, tz); l != NULL; l = l->next) {
+						if (
+							entity_load_effect(l->ent, EF_WET_BLOCK, &wet_d) &&
+							wet_d.type == li_d->type &&
+							wet_d.ent == ent_cptr(sec, tx, ty, tz)
+						) {
+							w = ent_aptr(l->ent);
+							break;
+						}
+					}
+					if (w != NULL) {
+						wet_d.amount++;
+						li_d->amount--;
+						entity_store_effect(ent_sptr(w), EF_WET_BLOCK, &wet_d);
+					} else {
+						entity_s *new_ent = o_alloc_entity();
+						new_ent->effects = NULL;
+						effect_s *ef_wet = alloc_effect(EF_WET_BLOCK);
+						effect_wet_block_data *d = (void*)ef_wet->data;
+						d->type = li_d->type;
+						d->amount = 1;
+						d->ent = ent_cptr(sec, tx, ty, tz);
+						effect_prepend(new_ent, ef_wet);
+						effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
+						effect_ph_item_data *dd = (void*)ef_ph->data;
+						dd->parent_type = PARENT_REF_BLOCK_WET;
+						dd->parent = ent_cptr(sec, tx, ty, tz);
+						effect_prepend(new_ent, ef_ph);
+						li_d->amount--;
+						entity_prepend(g_entities, new_ent);
+						g_entities = new_ent;
+						attach_generic_entity(ent_sptr(new_ent));
+					}
+				}
+			}
+			for (entity_l_s *l = sector_get_block_entities(sec, tx, ty, tz); l != NULL; l = l->next) {
+				effect_material_data mat_d;
+				effect_ph_block_data blk_d;
+				if (
+					entity_load_effect(l->ent, EF_PH_BLOCK, &blk_d) &&
+					(blk_d.prop & PB_FLOOR_UP) &&
+					entity_load_effect(l->ent, EF_MATERIAL, &mat_d) &&
+					mat_d.type == MAT_SOIL // TODO check for materials' general wet-ability coefficient
+				) {
+					effect_s *w = NULL;
+					effect_wet_data *wet_d = NULL;
+					for (effect_s *t = ent_aptr(l->ent)->effects; t != NULL; t = t->next) {
+						if (t->type == EF_WET) {
+							wet_d = (void*)t->data;
+							if (wet_d->type == li_d->type) {
+								w = t;
+								break;
+							}
+						}
+					}
+					if (w != NULL) {
+						wet_d->amount++;
+						li_d->amount--;
+					} else {
+						effect_s *new_ef = alloc_effect(EF_WET);
+						effect_wet_data *d = (void*)new_ef->data;
+						d->type = LIQ_WATER;
+						d->amount = 1;
+						effect_prepend(ent_aptr(l->ent), new_ef);
+						li_d->amount--;
+					}
+				}
+			}
+		}
+	}
+	// TODO soil and a few other materials should be able to absorb water
 	if (li_d->amount > G_PUDDLE_MAX + 3) {
 		int over = li_d->amount - G_PUDDLE_MAX, amount_lost = 0;
 		int valid_dir[4];
@@ -1596,6 +1804,18 @@ void apply_physics(ent_ptr sp) {
 		}
 	}
 	apply_attack(sp);
+#if 0
+	{
+		// TODO is this a reaction, or is it physics? Maybe it could get processed even later?
+		effect_wet_block_data wd;
+		if (entity_load_effect(sp, EF_WET_BLOCK, &wd)) {
+			if (wd.amount <= 0) {
+				effect_s *new_eff = alloc_effect(EF_B_NONEXISTENT);
+				effect_prepend(s, new_eff);
+			}
+		}
+	}
+#endif
 }
 
 void trigger_move(ent_ptr sp, int x, int y, int z) {
@@ -1792,7 +2012,9 @@ void hand_grab(ent_ptr ent, effect_s *hand, ent_ptr item, uint32_t tag) {
 		if (
 			entity_load_effect(hand_data->item, EF_LIMB_HAND, &lhand_data) &&
 			entity_load_effect(item, EF_PH_ITEM, &ph_data) &&
-			entity_reachable(ent, hand, item)
+			entity_reachable(ent, hand, item) &&
+			!entity_has_effect(item, EF_ROOTED)
+			// TODO check if the object is possible to grab & lift
 		) {
 			effect_s *mat = entity_material_by_tag(ent_aptr(item), tag);
 			if (
@@ -2076,6 +2298,8 @@ void dump_sector_bslice(sector_s *s, FILE *stream) {
 		}
 	}
 	int t = -1;
+	if (nskip == -1)
+		fwrite(&t, sizeof(int), 1, stream);
 	fwrite(&t, sizeof(int), 1, stream);
 }
 
@@ -2098,10 +2322,9 @@ void entity_enumerate(entity_s *s, int *ent_id) {
 	}
 }
 
-void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id, int *sector_id) {
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id) {
 	if (s == NULL)
 		return;
-	++*sector_id;
 	for (int i = 0; i < G_SECTOR_SIZE; i ++) {
 		for (int j = 0; j < G_SECTOR_SIZE; j ++) {
 			for (int k = 0; k < G_SECTOR_SIZE; k ++) {
@@ -2115,8 +2338,8 @@ void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id, int *sector_
 	}
 	s->stored_id = *bslice_id;
 	++*bslice_id;
-	sector_enumerate_rec(s->ch[0], ent_id, bslice_id, sector_id);
-	sector_enumerate_rec(s->ch[1], ent_id, bslice_id, sector_id);
+	sector_enumerate_rec(s->ch[0], ent_id, bslice_id);
+	sector_enumerate_rec(s->ch[1], ent_id, bslice_id);
 }
 
 void sector_dump_rec(sector_s *s, FILE *stream) {
@@ -2136,12 +2359,13 @@ void sector_dump_bslice_rec(sector_s *s, FILE *stream) {
 }
 
 void dump_sector_list(sector_s *s, FILE *stream) {
-	int ent_id = 0, bslice_id = 0, sector_id = 0;
-	sector_enumerate_rec(s, &ent_id, &bslice_id, &sector_id);
+	int ent_id = 0, bslice_id = 0;
+	sector_enumerate_rec(s, &ent_id, &bslice_id);
 	fwrite(&ent_id, sizeof(int), 1, stream);
 	fwrite(&bslice_id, sizeof(int), 1, stream);
-	fwrite(&sector_id, sizeof(int), 1, stream);
 	sector_dump_bslice_rec(s, stream);
+	char magic[4] = { 'A', 'B', 'C', 'D' };
+	fwrite(magic, 4, 1, stream);
 	sector_dump_rec(s, stream);
 }
 
@@ -2165,13 +2389,20 @@ void unload_entity(entity_s *s) {
 }
 
 entity_s *load_sector_list(FILE *stream) {
-	int n_ent, n_bslices, n_sectors;
+	int n_ent, n_bslices;
 	fread(&n_ent, sizeof(int), 1, stream);
 	fread(&n_bslices, sizeof(int), 1, stream);
-	fread(&n_sectors, sizeof(int), 1, stream);
-	sector_s **a_sec = o_malloc(sizeof(sector_s*) * n_sectors);
+	// there is exactly one bslice per each stored sector
+	sector_s **a_sec = o_malloc(sizeof(sector_s*) * n_bslices);
 	for (int i = 0; i < n_bslices; i++) {
-		scan_bslice(stream, a_sec, n_sectors);
+		scan_bslice(stream, a_sec, n_bslices);
+	}
+	char magic[4];
+	fread(magic, 4, 1, stream);
+	if (magic[0] != 'A' || magic[1] != 'B' || magic[2] != 'C' || magic[3] != 'D') {
+		fprintf(stderr, "Boundary bslice/entity magic mismatch %.4s\n", magic);
+		o_free(a_sec);
+		return NULL;
 	}
 	entity_s **a_ent = o_malloc(sizeof(entity_s*) * n_ent);
 	entity_s *prev_ent = NULL;
@@ -2185,7 +2416,7 @@ entity_s *load_sector_list(FILE *stream) {
 		a_ent[i]->next = a_ent[i + 1];
 	}
 	for (int i = 0; i < n_ent; i ++) {
-		scan_entity(n_ent, a_ent, n_sectors, a_sec, stream);
+		scan_entity(n_ent, a_ent, n_bslices, a_sec, stream);
 	}
 	entity_s *t = a_ent[0];
 	o_free(a_ent);
@@ -2245,14 +2476,16 @@ void scan_bslice(FILE *stream, sector_s **id_tags, int n_id_tags) {
 		sec->x = co[0];
 		sec->y = co[1];
 		sec->z = co[2];
-		sec->prio = rng_next(g_dice);
+		sec->prio = rng_bigrange(g_dice);
 		sec->ch[0] = NULL;
 		sec->ch[1] = NULL;
 		memset(sec->block_entities, 0, sizeof(sec->block_entities));
 		memset(sec->block_blocks, 0, sizeof(sec->block_blocks));
 		g_sectors = sector_insert(g_sectors, sec);
-		if (id < n_id_tags) {
+		if (id < n_id_tags && id >= 0) {
 			id_tags[id] = sec;
+		} else {
+			fprintf(stderr, "sector id too large %d/%d\n", id, n_id_tags);
 		}
 	}
 	int nskip;
@@ -2629,6 +2862,9 @@ void unparent_entity(ent_ptr sp) {
 			t = t->next;
 		}
 	} break;
+	case PARENT_REF_BLOCK_WET: {
+		// TODO what to do?
+	} break;
 	}
 }
 
@@ -2679,6 +2915,9 @@ void lift_entity(ent_ptr sp) {
 		effect_container_item_data *d = (void*)new_ef->data;
 		d->item = sp;
 		effect_prepend(p, new_ef);
+	} break;
+	case PARENT_REF_BLOCK_WET: {
+		// TODO this one isn't to be lifted
 	} break;
 	}
 }

@@ -130,6 +130,11 @@ typedef struct effect_wet_data {
 	enum liquid_type type;
 	int amount;
 } effect_wet_data;
+typedef struct effect_wet_block_data {
+	ent_ptr ent;
+	enum liquid_type type;
+	int amount;
+} effect_wet_block_data;
 typedef struct effect_m_fill_cont_data {
 	uint32_t hand_tag;
 	ent_ptr target;
@@ -153,6 +158,16 @@ typedef struct effect_m_open_door_data {
 typedef struct effect_door_data {
 	int opened;
 } effect_door_data;
+typedef struct effect_plant_data {
+	int plant_type;
+	int stored_energy;
+	int stored_water;
+	int growth;
+} effect_plant_data;
+typedef struct effect_rooted_data {
+	int dur;
+	ent_ptr ent;
+} effect_rooted_data;
 typedef enum effect_type {
 	EF_B_NONEXISTENT,
 	EF_B_INDEX,
@@ -188,11 +203,14 @@ typedef enum effect_type {
 	EF_CONTAINER,
 	EF_CONTAINER_ITEM,
 	EF_WET,
+	EF_WET_BLOCK,
 	EF_M_FILL_CONT,
 	EF_M_EMPTY_CONT,
 	EF_M_PRESS_BUTTON,
 	EF_S_PRESS_BUTTON,
 	EF_M_OPEN_DOOR,
 	EF_DOOR,
+	EF_PLANT,
+	EF_ROOTED,
 	EF_UNKNOWN = -1
 } effect_type;

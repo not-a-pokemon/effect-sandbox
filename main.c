@@ -81,7 +81,10 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 
 	int z = cam->z;
 	int cz = 0;
+	int z_below = z - 1;
+	int cz_below = 0;
 	coord_normalize(&z, &cz);
+	coord_normalize(&z_below, &cz_below);
 
 	SDL_SetRenderDrawColor(rend, 0, 0, 0, 255);
 	for (int i = 0; i < cam->width; i ++) {
@@ -90,7 +93,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 			SDL_RenderFillRect(rend, &r);
 		}
 	}
-	sector_s *s = NULL;
+	sector_s *s = NULL, *s_below = NULL;
 	for (int i = 0; i < cam->width; i ++) {
 		for (int j = 0; j < cam->height; j ++) {
 			int cx = 0;
@@ -101,18 +104,69 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 			coord_normalize(&y, &cy);
 			if (!(prev_cx == cx && prev_cy == cy)) {
 				s = sector_get_sector(g_sectors, cx, cy, cz);
+				if (cz_below != cz)
+					s_below = sector_get_sector(g_sectors, cx, cy, cz_below);
+				else
+					s_below = s;
+			}
+			SDL_Rect cur_rect = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
+			if (s_below != NULL) {
+				int done_floor = 0;
+				effect_ph_block_data bd;
+				if (
+					s_below->block_blocks[x][y][z_below].type != BLK_EMPTY &&
+					entity_load_effect(ent_cptr(s_below, x, y, z_below), EF_PH_BLOCK, &bd) &&
+					(bd.prop & PB_FLOOR_UP)
+				) {
+					done_floor = 1;
+					char c_chr;
+					int c_r, c_g, c_b, c_a;
+					if (entity_rend_chr(ent_cptr(s_below, x, y, z_below), &c_chr, &c_r, &c_g, &c_b, &c_a)) {
+						char rr[2] = {'.', '\0'};
+						c_a /= 2;
+						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
+						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
+						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+						SDL_RenderCopy(rend, tex, NULL, &cur_rect);
+						SDL_DestroyTexture(tex);
+						SDL_FreeSurface(surf);
+					}
+				}
+				if (!done_floor) {
+					entity_l_s *bl = sector_get_block_entities(s_below, x, y, z_below);
+					char c_chr;
+					int c_r, c_g, c_b, c_a;
+					while (bl != NULL) {
+						if (
+							entity_load_effect(bl->ent, EF_PH_BLOCK, &bd) &&
+							(bd.prop && PB_FLOOR_UP) &&
+							entity_rend_chr(bl->ent, &c_chr, &c_r, &c_g, &c_b, &c_a)
+						) {
+							char rr[2] = {'.', '\0'};
+							c_a /= 2;
+							SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
+							SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
+							SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+							SDL_RenderCopy(rend, tex, NULL, &cur_rect);
+							SDL_DestroyTexture(tex);
+							SDL_FreeSurface(surf);
+							done_floor = 1;
+							break;
+						}
+						bl = bl->next;
+					}
+				}
 			}
 			if (s != NULL) {
 				if (s->block_blocks[x][y][z].type != BLK_EMPTY) {
 					char c_chr;
 					int c_r, c_g, c_b, c_a;
 					if (entity_rend_chr(ent_cptr(s, x, y, z), &c_chr, &c_r, &c_g, &c_b, &c_a)) {
-						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {c_chr, '\0'};
 						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
 						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-						SDL_RenderCopy(rend, tex, NULL, &r);
+						SDL_RenderCopy(rend, tex, NULL, &cur_rect);
 						SDL_DestroyTexture(tex);
 						SDL_FreeSurface(surf);
 					}
@@ -123,18 +177,16 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 					char c_chr;
 					int c_r, c_g, c_b, c_a;
 					if (entity_rend_chr(t->ent, &c_chr, &c_r, &c_g, &c_b, &c_a)) {
-						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {c_chr, '\0'};
 						SDL_Color colo = {.r = c_r, .g = c_g, .b = c_b, .a = c_a};
 						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, colo);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-						SDL_RenderCopy(rend, tex, NULL, &r);
+						SDL_RenderCopy(rend, tex, NULL, &cur_rect);
 						SDL_DestroyTexture(tex);
 						SDL_FreeSurface(surf);
 					}
 					effect_s *fi = effect_by_type(te->effects, EF_FIRE);
 					if (fi != NULL) {
-						SDL_Rect r = {.x = i * REND_CHAR_WIDTH, .y = j * REND_CHAR_HEIGHT, .w = REND_CHAR_WIDTH, .h = REND_CHAR_HEIGHT};
 						char rr[2] = {'!', '\0'};
 						SDL_Color fire_color = {.r = 255, .g = 0, .b = 0, .a = 192};
 						if (cam->blink % 2) {
@@ -142,7 +194,7 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 						}
 						SDL_Surface *surf = TTF_RenderText_Blended(gr_font, rr, fire_color);
 						SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
-						SDL_RenderCopy(rend, tex, NULL, &r);
+						SDL_RenderCopy(rend, tex, NULL, &cur_rect);
 						SDL_DestroyTexture(tex);
 						SDL_FreeSurface(surf);
 					}
@@ -335,6 +387,38 @@ void spawn_simple_wall(int x, int y, int z) {
 		}
 	}
 }
+void spawn_simple_soil_uncomp(int x, int y, int z) {
+	entity_s *new_ent = o_alloc_entity();
+	new_ent->effects = NULL;
+	new_ent->common_type = CT_SOIL_BLOCK;
+	((int*)new_ent->common_data)[0] = x;
+	((int*)new_ent->common_data)[1] = y;
+	((int*)new_ent->common_data)[2] = z;
+	((int*)new_ent->common_data)[3] = 10;
+	entity_prepend(g_entities, new_ent);
+	g_entities = new_ent;
+	attach_generic_entity(ent_sptr(new_ent));
+}
+
+void spawn_simple_soil(int x, int y, int z) {
+	int xc = 0, yc = 0, zc = 0;
+	coord_normalize(&x, &xc);
+	coord_normalize(&y, &yc);
+	coord_normalize(&z, &zc);
+	sector_s *sec = sector_get_sector(g_sectors, xc, yc, zc);
+	if (sec != NULL) {
+		if (sec->block_blocks[x][y][z].type == BLK_EMPTY) {
+			sec->block_blocks[x][y][z].type = BLK_SOIL;
+			sec->block_blocks[x][y][z].dur = 10;
+		} else {
+			spawn_simple_soil_uncomp(
+				x + xc * G_SECTOR_SIZE,
+				y + yc * G_SECTOR_SIZE,
+				z + zc * G_SECTOR_SIZE
+			);
+		}
+	}
+}
 
 void spawn_simple_door(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
@@ -358,12 +442,6 @@ void spawn_simple_door(int x, int y, int z) {
 		d->chr = '%';
 		effect_prepend(new_ent, ef_rend);
 	}
-#if 0
-	{
-		effect_s *ef_door = alloc_effect(EF_R_TOUCH_TOGGLE_BLOCK);
-		effect_prepend(new_ent, ef_door);
-	}
-#endif
 	{
 		effect_s *ef_door = alloc_effect(EF_DOOR);
 		effect_door_data *d = (void*)ef_door->data;
@@ -493,16 +571,17 @@ void setup_field(void) {
 	{
 		for (int i = -1; i < 20; i ++) {
 			for (int j = -1; j < 20; j ++) {
-				sector_s *new_sect = o_alloc_sector();
-				new_sect->x = i;
-				new_sect->y = j;
-				new_sect->z = 0;
-				/* TODO this should be a random number generator with a big range */
-				new_sect->prio = rng_next(g_dice);
-				memset(new_sect->ch, 0, sizeof(new_sect->ch));
-				memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
-				memset(new_sect->block_blocks, 0, sizeof(new_sect->block_blocks));
-				g_sectors = sector_insert(g_sectors, new_sect);
+				for (int z = -1; z <= 1; z++) {
+					sector_s *new_sect = o_alloc_sector();
+					new_sect->x = i;
+					new_sect->y = j;
+					new_sect->z = z;
+					new_sect->prio = rng_bigrange(g_dice);
+					memset(new_sect->ch, 0, sizeof(new_sect->ch));
+					memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
+					memset(new_sect->block_blocks, 0, sizeof(new_sect->block_blocks));
+					g_sectors = sector_insert(g_sectors, new_sect);
+				}
 			}
 		}
 
@@ -628,12 +707,6 @@ void setup_field(void) {
 			d->tag = 0;
 			effect_prepend(new_ent, ef_mat);
 		}
-#if 0
-		{
-			effect_s *ef_tp = alloc_effect(EF_R_TOUCH_RNG_TP);
-			effect_prepend(new_ent, ef_tp);
-		}
-#endif
 		{
 			effect_s *ef_rend = alloc_effect(EF_RENDER);
 			effect_render_data *d = (void*)ef_rend->data;
@@ -823,9 +896,9 @@ void setup_field(void) {
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
-			d->x = 2;
-			d->y = 2;
-			d->z = 1;
+			d->x = 10;
+			d->y = 5;
+			d->z = 2;
 			d->weight = 0;
 			d->parent = ENT_NULL;
 			effect_prepend(new_ent, ef_ph);
@@ -930,6 +1003,59 @@ void setup_field(void) {
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
 	}
+	{
+		entity_s *new_ent = o_alloc_entity();
+		new_ent->effects = NULL;
+		{
+			effect_s *new_eff = alloc_effect(EF_RENDER);
+			effect_render_data *d = (void*)new_eff->data;
+			d->chr = '|';
+			d->r = 128;
+			d->g = 128;
+			d->b = 128;
+			d->a = 128;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_PH_ITEM);
+			effect_ph_item_data *d = (void*)new_eff->data;
+			d->x = 10;
+			d->y = 5;
+			d->z = 0;
+			d->weight = 1;
+			d->parent = ENT_NULL;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_MATERIAL);
+			effect_material_data *d = (void*)new_eff->data;
+			d->type = MAT_PLANT;
+			d->dur = 20;
+			d->prop = 0;
+			d->tag = 0;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_PLANT);
+			effect_plant_data *d = (void*)new_eff->data;
+			d->plant_type = 0; // TODO make plant types
+			d->stored_energy = 10;
+			d->stored_water = 10;
+			d->growth = 0;
+			effect_prepend(new_ent, new_eff);
+		}
+		{
+			effect_s *new_eff = alloc_effect(EF_ROOTED);
+			effect_rooted_data *d = (void*)new_eff->data;
+			d->dur = 1;
+			// the cptr is created even before the block there appears
+			d->ent = ent_cptr(sector_get_sector(g_sectors, 10/8, 5/8, -1), 10 % 8, 5 % 8, 7);
+			effect_prepend(new_ent, new_eff);
+		}
+		attach_generic_entity(ent_sptr(new_ent));
+		entity_prepend(g_entities, new_ent);
+		g_entities = new_ent;
+	}
 	for (int i = 0; i < 5; i ++) {
 		if (i == 2) {
 			spawn_simple_door(i, 5, 0);
@@ -951,7 +1077,8 @@ void setup_field(void) {
 	}
 	for (int i = 0; i < G_SECTOR_SIZE * 5; i++) {
 		for (int j = 0; j < G_SECTOR_SIZE * 5; j++) {
-			spawn_simple_floor(i, j, 0);
+			// spawn_simple_floor(i, j, 0);
+			spawn_simple_soil(i, j, -1);
 		}
 	}
 	char ch = 'a';
@@ -1074,14 +1201,16 @@ void cmap_go_down(cmap_params_t *p) {
 	trigger_go_down(ent_sptr(p->control_ent));
 }
 
-int key_to_direction(int key, int *x, int *y) {
+int key_to_direction(int key, int *x, int *y, int *z) {
+	*x = 0;
+	*y = 0;
+	*z = 0;
 	switch (key) {
 	case SDLK_KP_1: {
 		*x = -1;
 		*y = 1;
 	} break;
 	case SDLK_KP_2: {
-		*x = 0;
 		*y = 1;
 	} break;
 	case SDLK_KP_3: {
@@ -1090,23 +1219,26 @@ int key_to_direction(int key, int *x, int *y) {
 	} break;
 	case SDLK_KP_4: {
 		*x = -1;
-		*y = 0;
 	} break;
 	case SDLK_KP_6: {
 		*x = 1;
-		*y = 0;
 	} break;
 	case SDLK_KP_7: {
 		*x = -1;
 		*y = -1;
 	} break;
 	case SDLK_KP_8: {
-		*x = 0;
 		*y = -1;
 	} break;
 	case SDLK_KP_9: {
 		*x = 1;
 		*y = -1;
+	} break;
+	case 'j': {
+		*z = -1;
+	} break;
+	case 'k': {
+		*z = 1;
 	} break;
 	default: {
 		return 0;
@@ -1116,9 +1248,10 @@ int key_to_direction(int key, int *x, int *y) {
 }
 
 void cmap_go(cmap_params_t *p) {
-	int x, y;
-	if (key_to_direction(p->key, &x, &y))
+	int x, y, z;
+	if (key_to_direction(p->key, &x, &y, &z) && z == 0) {
 		trigger_move(ent_sptr(p->control_ent), x, y, 0);
+	}
 }
 
 void cmap_put(cmap_params_t *p) {
@@ -1567,10 +1700,11 @@ int inputw_tile_key(SDL_Keycode sym) {
 	}
 	inputw_t *l = &inputws[inputw_n-1];
 	inputw_tile_s *t = &l->data_u.u_tile;
-	int x, y;
-	if (key_to_direction(sym, &x, &y)) {
+	int x, y, z;
+	if (key_to_direction(sym, &x, &y, &z)) {
 		t->x += x;
 		t->y += y;
+		t->z += z;
 		return INP_M_REDRAW;
 	}
 	if (sym == SDLK_ESCAPE) {
@@ -1590,10 +1724,11 @@ int inputw_entity_key(SDL_Keycode sym) {
 		return 0;
 	}
 	inputw_entity_s *e = &inputws[inputw_n - 1].data_u.u_entity;
-	int x, y;
-	if (key_to_direction(sym, &x, &y)) {
+	int x, y, z;
+	if (key_to_direction(sym, &x, &y, &z)) {
 		e->x += x;
 		e->y += y;
+		e->z += z;
 		int x = e->x, y = e->y, z = e->z, cx = 0, cy = 0, cz = 0;
 		coord_normalize(&x, &cx);
 		coord_normalize(&y, &cy);
@@ -1839,12 +1974,20 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 		while (cur != NULL) {
 			ent_ptr cur_ent = cur->ent;
 			effect_ph_liquid_data liq_d;
+			effect_wet_block_data wd;
 			if (entity_load_effect(cur_ent, EF_PH_LIQUID, &liq_d)) {
 				snprintf(
 					buf, 32,
 					"~%s a:%d",
 					liq_d.type == LIQ_WATER ? "water" : "*",
 					liq_d.amount
+				);
+			} else if (entity_load_effect(cur_ent, EF_WET_BLOCK, &wd)) {
+				snprintf(
+					buf, 32,
+					"wet %s a:%d",
+					wd.type == LIQ_WATER ? "water" : "*",
+					wd.amount
 				);
 			} else {
 				effect_render_data d;
@@ -2084,17 +2227,19 @@ int main(int argc, char **argv) {
 		FILE *stream = fopen(fname, "rb");
 		if (stream != NULL) {
 			g_entities = load_sector_list(stream);
-			for (int i = -1; i < 70; i ++) {
-				for (int j = -1; j < 70; j ++) {
-					if (sector_get_sector(g_sectors, i, j, 0) == NULL) {
-						sector_s *new_sect = o_alloc_sector();
-						new_sect->x = i;
-						new_sect->y = j;
-						new_sect->z = 0;
-						new_sect->prio = rng_next(g_dice);
-						memset(new_sect->ch, 0, sizeof(new_sect->ch));
-						memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
-						g_sectors = sector_insert(g_sectors, new_sect);
+			for (int i = -1; i < 20; i ++) {
+				for (int j = -1; j < 20; j ++) {
+					for (int z = -1; z <= 1; z++) {
+						if (sector_get_sector(g_sectors, i, j, z) == NULL) {
+							sector_s *new_sect = o_alloc_sector();
+							new_sect->x = i;
+							new_sect->y = j;
+							new_sect->z = z;
+							new_sect->prio = rng_bigrange(g_dice);
+							memset(new_sect->ch, 0, sizeof(new_sect->ch));
+							memset(new_sect->block_entities, 0, sizeof(new_sect->block_entities));
+							g_sectors = sector_insert(g_sectors, new_sect);
+						}
 					}
 				}
 			}
@@ -2137,6 +2282,10 @@ int main(int argc, char **argv) {
 	if (control_ent == NULL) {
 		fprintf(stderr, "No controlling entity, quit\n");
 		running = 0;
+	}
+
+	if (g_entities == NULL) {
+		fputs("g_entities is null, exit\n", stderr);
 	}
 
 	while (running) {

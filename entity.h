@@ -20,6 +20,7 @@ typedef enum block_type {
 	BLK_EMPTY = 0,
 	BLK_FLOOR,
 	BLK_WALL,
+	BLK_SOIL,
 } block_type;
 
 typedef enum rotation_type {
@@ -48,6 +49,7 @@ typedef enum parent_ref_type {
 	PARENT_REF_PLACE,
 	PARENT_REF_LIMB,
 	PARENT_REF_CONT,
+	PARENT_REF_BLOCK_WET,
 } parent_ref_type;
 
 typedef enum material_type {
@@ -56,6 +58,7 @@ typedef enum material_type {
 	MAT_STONE,
 	MAT_PLANT,
 	MAT_GLASS,
+	MAT_SOIL,
 } material_type;
 
 /* Note that this is a bit-field enum */
@@ -83,6 +86,7 @@ typedef enum common_type_t {
 	CT_NONE = 0,
 	CT_WALL,
 	CT_FLOOR,
+	CT_SOIL_BLOCK,
 } common_type_t;
 
 #include "gen-effects.h"
@@ -246,7 +250,7 @@ void dump_sector(sector_s *s, FILE *stream);
 void dump_sector_bslice(sector_s *s, FILE *stream);
 void entity_enumerate(entity_s *s, int *ent_id);
 
-void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id, int *sector_id);
+void sector_enumerate_rec(sector_s *s, int *ent_id, int *bslice_id);
 void sector_dump_bslice_rec(sector_s *s, FILE *stream);
 void sector_dump_rec(sector_s *s, FILE *stream);
 void dump_sector_list(sector_s *s, FILE *stream);
