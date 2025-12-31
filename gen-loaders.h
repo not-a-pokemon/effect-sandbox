@@ -345,6 +345,33 @@ int effect_rem_m_grab(struct entity_s *s, effect_s *e) {
 	if (d->ent == ENT_NULL || entity_has_effect(d->ent, EF_B_NONEXISTENT)) return 1;
 	return 0;
 }
+void effect_scan_m_grab_pile(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_m_grab_pile_data *d = (void*)e->data;
+	fread(&d->eff_tag, sizeof(uint32_t), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t != -1 && t < n_ent) {d->ent = ent_sptr(a_ent[t]);}
+	else if (t != -1 && (t & STORED_CPTR_BIT)) { unsigned sec_nr = (t ^ STORED_CPTR_BIT) >> 9, co = t & 0x1FF;
+		if (sec_nr <= (unsigned)n_sec) d->ent = ent_cptr(a_sec[sec_nr], co >> 6, (co >> 3) & 7, co & 7);
+		else d->ent = ENT_NULL; }
+	else {d->ent = ENT_NULL;} }
+	fread(&d->amount, sizeof(int), 1, stream);
+}
+void effect_dump_m_grab_pile(effect_s *e, FILE *stream) {
+	effect_m_grab_pile_data *d = (void*)e->data;
+	fwrite(&d->eff_tag, sizeof(uint32_t), 1, stream);
+	{ int t; if (d->ent == ENT_NULL) {t = -1;}
+	else if (ent_aptr(d->ent) != NULL) {t = entity_get_index(ent_aptr(d->ent));}
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->ent, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	fwrite(&t, sizeof(int), 1, stream); }
+	fwrite(&d->amount, sizeof(int), 1, stream);
+}
+int effect_rem_m_grab_pile(struct entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_grab_pile_data *d = (void*)e->data;
+	if (d->ent == ENT_NULL || entity_has_effect(d->ent, EF_B_NONEXISTENT)) return 1;
+	return 0;
+}
 void effect_scan_m_drop(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
 	effect_m_drop_data *d = (void*)e->data;
@@ -395,6 +422,31 @@ void effect_dump_m_throw(effect_s *e, FILE *stream) {
 	fwrite(&d->y, sizeof(int), 1, stream);
 	fwrite(&d->z, sizeof(int), 1, stream);
 	fwrite(&d->speed, sizeof(int), 1, stream);
+}
+void effect_scan_m_wear(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_m_wear_data *d = (void*)e->data;
+	fread(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; fread(&t, sizeof(int), 1, stream); if (t != -1 && t < n_ent) {d->body_part = ent_sptr(a_ent[t]);}
+	else if (t != -1 && (t & STORED_CPTR_BIT)) { unsigned sec_nr = (t ^ STORED_CPTR_BIT) >> 9, co = t & 0x1FF;
+		if (sec_nr <= (unsigned)n_sec) d->body_part = ent_cptr(a_sec[sec_nr], co >> 6, (co >> 3) & 7, co & 7);
+		else d->body_part = ENT_NULL; }
+	else {d->body_part = ENT_NULL;} }
+}
+void effect_dump_m_wear(effect_s *e, FILE *stream) {
+	effect_m_wear_data *d = (void*)e->data;
+	fwrite(&d->hand_tag, sizeof(uint32_t), 1, stream);
+	{ int t; if (d->body_part == ENT_NULL) {t = -1;}
+	else if (ent_aptr(d->body_part) != NULL) {t = entity_get_index(ent_aptr(d->body_part));}
+	else { sector_s *sec; int x, y, z; if ((sec = ent_acptr(d->body_part, &x, &y, &z)) != NULL) {t = STORED_CPTR_BIT | (sec->stored_id << 9) | (x << 6) | (y << 3) | z;}
+	else {fprintf(stderr, "bad bad bad\n"); t = -1;} }
+	fwrite(&t, sizeof(int), 1, stream); }
+}
+int effect_rem_m_wear(struct entity_s *s, effect_s *e) {
+	(void)s; (void)e;
+	effect_m_wear_data *d = (void*)e->data;
+	if (d->body_part == ENT_NULL || entity_has_effect(d->body_part, EF_B_NONEXISTENT)) return 1;
+	return 0;
 }
 void effect_scan_r_bottle_dispenser(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
@@ -616,6 +668,7 @@ void effect_scan_plant(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sect
 	fread(&d->stored_energy, sizeof(int), 1, stream);
 	fread(&d->stored_water, sizeof(int), 1, stream);
 	fread(&d->growth, sizeof(int), 1, stream);
+	fread(&d->cycle_time, sizeof(int), 1, stream);
 }
 void effect_dump_plant(effect_s *e, FILE *stream) {
 	effect_plant_data *d = (void*)e->data;
@@ -623,6 +676,7 @@ void effect_dump_plant(effect_s *e, FILE *stream) {
 	fwrite(&d->stored_energy, sizeof(int), 1, stream);
 	fwrite(&d->stored_water, sizeof(int), 1, stream);
 	fwrite(&d->growth, sizeof(int), 1, stream);
+	fwrite(&d->cycle_time, sizeof(int), 1, stream);
 }
 void effect_scan_rooted(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
 	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
@@ -648,6 +702,39 @@ int effect_rem_rooted(struct entity_s *s, effect_s *e) {
 	effect_rooted_data *d = (void*)e->data;
 	if (d->ent == ENT_NULL || entity_has_effect(d->ent, EF_B_NONEXISTENT)) return 1;
 	return 0;
+}
+void effect_scan_rain(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_rain_data *d = (void*)e->data;
+	fread(&d->n, sizeof(int), 1, stream);
+	fread(&d->type, sizeof(int), 1, stream);
+}
+void effect_dump_rain(effect_s *e, FILE *stream) {
+	effect_rain_data *d = (void*)e->data;
+	fwrite(&d->n, sizeof(int), 1, stream);
+	fwrite(&d->type, sizeof(int), 1, stream);
+}
+void effect_scan_pile(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_pile_data *d = (void*)e->data;
+	fread(&d->amount, sizeof(int), 1, stream);
+	fread(&d->type, sizeof(int), 1, stream);
+}
+void effect_dump_pile(effect_s *e, FILE *stream) {
+	effect_pile_data *d = (void*)e->data;
+	fwrite(&d->amount, sizeof(int), 1, stream);
+	fwrite(&d->type, sizeof(int), 1, stream);
+}
+void effect_scan_clothes(effect_s *e, int n_ent, entity_s **a_ent, int n_sec, sector_s **a_sec, FILE *stream) {
+	(void)n_ent; (void)a_ent; (void)n_sec; (void)a_sec;
+	effect_clothes_data *d = (void*)e->data;
+	fread(&d->body_part, sizeof(int), 1, stream);
+	fread(&d->body_mask, sizeof(uint32_t), 1, stream);
+}
+void effect_dump_clothes(effect_s *e, FILE *stream) {
+	effect_clothes_data *d = (void*)e->data;
+	fwrite(&d->body_part, sizeof(int), 1, stream);
+	fwrite(&d->body_mask, sizeof(uint32_t), 1, stream);
 }
 
 int effect_data_size[] = {
@@ -676,9 +763,11 @@ int effect_data_size[] = {
 	[EF_A_PRESSURE_PLATE] = sizeof(effect_a_pressure_plate_data),
 	[EF_A_CIRCLE_MOVE] = 0,
 	[EF_M_GRAB] = sizeof(effect_m_grab_data),
+	[EF_M_GRAB_PILE] = sizeof(effect_m_grab_pile_data),
 	[EF_M_DROP] = sizeof(effect_m_drop_data),
 	[EF_M_PUT] = sizeof(effect_m_put_data),
 	[EF_M_THROW] = sizeof(effect_m_throw_data),
+	[EF_M_WEAR] = sizeof(effect_m_wear_data),
 	[EF_R_BOTTLE_DISPENSER] = sizeof(effect_r_bottle_dispenser_data),
 	[EF_STATS] = sizeof(effect_stats_data),
 	[EF_PH_LIQUID] = sizeof(effect_ph_liquid_data),
@@ -694,6 +783,9 @@ int effect_data_size[] = {
 	[EF_DOOR] = sizeof(effect_door_data),
 	[EF_PLANT] = sizeof(effect_plant_data),
 	[EF_ROOTED] = sizeof(effect_rooted_data),
+	[EF_RAIN] = sizeof(effect_rain_data),
+	[EF_PILE] = sizeof(effect_pile_data),
+	[EF_CLOTHES] = sizeof(effect_clothes_data),
 };
 
 effect_dump_t effect_dump_functions[] = {
@@ -722,9 +814,11 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_A_PRESSURE_PLATE] = effect_dump_a_pressure_plate,
 	[EF_A_CIRCLE_MOVE] = NULL,
 	[EF_M_GRAB] = effect_dump_m_grab,
+	[EF_M_GRAB_PILE] = effect_dump_m_grab_pile,
 	[EF_M_DROP] = effect_dump_m_drop,
 	[EF_M_PUT] = effect_dump_m_put,
 	[EF_M_THROW] = effect_dump_m_throw,
+	[EF_M_WEAR] = effect_dump_m_wear,
 	[EF_R_BOTTLE_DISPENSER] = effect_dump_r_bottle_dispenser,
 	[EF_STATS] = effect_dump_stats,
 	[EF_PH_LIQUID] = effect_dump_ph_liquid,
@@ -740,6 +834,9 @@ effect_dump_t effect_dump_functions[] = {
 	[EF_DOOR] = effect_dump_door,
 	[EF_PLANT] = effect_dump_plant,
 	[EF_ROOTED] = effect_dump_rooted,
+	[EF_RAIN] = effect_dump_rain,
+	[EF_PILE] = effect_dump_pile,
+	[EF_CLOTHES] = effect_dump_clothes,
 };
 
 effect_scan_t effect_scan_functions[] = {
@@ -768,9 +865,11 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_A_PRESSURE_PLATE] = effect_scan_a_pressure_plate,
 	[EF_A_CIRCLE_MOVE] = NULL,
 	[EF_M_GRAB] = effect_scan_m_grab,
+	[EF_M_GRAB_PILE] = effect_scan_m_grab_pile,
 	[EF_M_DROP] = effect_scan_m_drop,
 	[EF_M_PUT] = effect_scan_m_put,
 	[EF_M_THROW] = effect_scan_m_throw,
+	[EF_M_WEAR] = effect_scan_m_wear,
 	[EF_R_BOTTLE_DISPENSER] = effect_scan_r_bottle_dispenser,
 	[EF_STATS] = effect_scan_stats,
 	[EF_PH_LIQUID] = effect_scan_ph_liquid,
@@ -786,6 +885,9 @@ effect_scan_t effect_scan_functions[] = {
 	[EF_DOOR] = effect_scan_door,
 	[EF_PLANT] = effect_scan_plant,
 	[EF_ROOTED] = effect_scan_rooted,
+	[EF_RAIN] = effect_scan_rain,
+	[EF_PILE] = effect_scan_pile,
+	[EF_CLOTHES] = effect_scan_clothes,
 };
 
 effect_rem_t effect_rem_functions[] = {
@@ -814,9 +916,11 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_A_PRESSURE_PLATE] = NULL,
 	[EF_A_CIRCLE_MOVE] = NULL,
 	[EF_M_GRAB] = effect_rem_m_grab,
+	[EF_M_GRAB_PILE] = effect_rem_m_grab_pile,
 	[EF_M_DROP] = NULL,
 	[EF_M_PUT] = effect_rem_m_put,
 	[EF_M_THROW] = NULL,
+	[EF_M_WEAR] = effect_rem_m_wear,
 	[EF_R_BOTTLE_DISPENSER] = NULL,
 	[EF_STATS] = NULL,
 	[EF_PH_LIQUID] = NULL,
@@ -832,4 +936,358 @@ effect_rem_t effect_rem_functions[] = {
 	[EF_DOOR] = NULL,
 	[EF_PLANT] = NULL,
 	[EF_ROOTED] = effect_rem_rooted,
+	[EF_RAIN] = NULL,
+	[EF_PILE] = NULL,
+	[EF_CLOTHES] = NULL,
+};
+int entity_block_load_effect(sector_s *sec, int x, int y, int z, effect_type t, void *d) {
+	block_s blk = sec->block_blocks[x][y][z];
+	switch (blk.type) {
+	case BLK_FLOOR: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = x + sec->x * G_SECTOR_SIZE;
+			rd->y = y + sec->y * G_SECTOR_SIZE;
+			rd->z = z + sec->z * G_SECTOR_SIZE;
+			rd->prop = PB_FLOOR;
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 0;
+			rd->g = 255;
+			rd->b = 0;
+			rd->a = 128;
+			rd->chr = '_';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_WOOD;
+			rd->dur = blk.dur;
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case BLK_WALL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = x + sec->x * G_SECTOR_SIZE;
+			rd->y = y + sec->y * G_SECTOR_SIZE;
+			rd->z = z + sec->z * G_SECTOR_SIZE;
+			rd->prop = (PB_FLOOR_UP | PB_BLOCK_MOVEMENT);
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 0;
+			rd->g = 255;
+			rd->b = 0;
+			rd->a = 128;
+			rd->chr = '#';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_WOOD;
+			rd->dur = blk.dur;
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case BLK_SOIL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = x + sec->x * G_SECTOR_SIZE;
+			rd->y = y + sec->y * G_SECTOR_SIZE;
+			rd->z = z + sec->z * G_SECTOR_SIZE;
+			rd->prop = (PB_FLOOR_UP | PB_BLOCK_MOVEMENT);
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 255;
+			rd->g = 181;
+			rd->b = 15;
+			rd->a = 128;
+			rd->chr = '#';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_SOIL;
+			rd->dur = blk.dur;
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	default: return 0;
+	}
+}
+int entity_block_has_effect(sector_s *sec, int x, int y, int z, effect_type t) {
+	block_s blk = sec->block_blocks[x][y][z];
+	switch (blk.type) {
+	case BLK_FLOOR: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case BLK_WALL: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case BLK_SOIL: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	default: return 0;
+	}
+}
+int entity_common_has_effect(entity_s *s, effect_type t) {
+	switch (s->common_type) {
+	case CT_B_FLOOR: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_B_WALL: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_B_SOIL: {
+	switch (t) {
+		case EF_PH_BLOCK:
+		case EF_RENDER:
+		case EF_MATERIAL:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_LIQUID: {
+	switch (t) {
+		case EF_PH_LIQUID:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_RAIN: {
+	switch (t) {
+		case EF_RAIN:
+			return 1;
+		default: return 0;
+		}
+	} break;
+	default: return 0;
+	}
+}
+int entity_common_load_effect(entity_s *s, effect_type t, void *d) {
+	switch (s->common_type) {
+	case CT_B_FLOOR: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = ((int*)s->common_data)[0];
+			rd->y = ((int*)s->common_data)[1];
+			rd->z = ((int*)s->common_data)[2];
+			rd->prop = PB_FLOOR;
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 0;
+			rd->g = 255;
+			rd->b = 0;
+			rd->a = 128;
+			rd->chr = '_';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_WOOD;
+			rd->dur = ((int*)s->common_data)[3];
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_B_WALL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = ((int*)s->common_data)[0];
+			rd->y = ((int*)s->common_data)[1];
+			rd->z = ((int*)s->common_data)[2];
+			rd->prop = (PB_FLOOR_UP | PB_BLOCK_MOVEMENT);
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 0;
+			rd->g = 255;
+			rd->b = 0;
+			rd->a = 128;
+			rd->chr = '#';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_WOOD;
+			rd->dur = ((int*)s->common_data)[3];
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_B_SOIL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			rd->x = ((int*)s->common_data)[0];
+			rd->y = ((int*)s->common_data)[1];
+			rd->z = ((int*)s->common_data)[2];
+			rd->prop = (PB_FLOOR_UP | PB_BLOCK_MOVEMENT);
+		} return 1;
+		case EF_RENDER: {
+			effect_render_data *rd = d;
+			rd->r = 255;
+			rd->g = 181;
+			rd->b = 15;
+			rd->a = 128;
+			rd->chr = '#';
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			rd->type = MAT_SOIL;
+			rd->dur = ((int*)s->common_data)[3];
+			rd->prop = 0;
+			rd->tag = 0;
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_LIQUID: {
+		switch (t) {
+		case EF_PH_LIQUID: {
+			effect_ph_liquid_data *rd = d;
+			rd->type = ((int*)s->common_data)[0];
+			rd->amount = ((int*)s->common_data)[1];
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	case CT_RAIN: {
+		switch (t) {
+		case EF_RAIN: {
+			effect_rain_data *rd = d;
+			rd->n = ((int*)s->common_data)[0];
+			rd->type = ((int*)s->common_data)[1];
+		} return 1;
+		default: return 0;
+		}
+	} break;
+	default: return 0;
+	}
+}
+int entity_common_store_effect(entity_s *s, effect_type t, void *d) {
+	switch (s->common_type) {
+	case CT_B_FLOOR: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			((int*)s->common_data)[0] = rd->x;
+			((int*)s->common_data)[1] = rd->y;
+			((int*)s->common_data)[2] = rd->z;
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			((int*)s->common_data)[3] = rd->dur;
+		} return 1;
+		default: return 0;
+		}
+	}
+	case CT_B_WALL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			((int*)s->common_data)[0] = rd->x;
+			((int*)s->common_data)[1] = rd->y;
+			((int*)s->common_data)[2] = rd->z;
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			((int*)s->common_data)[3] = rd->dur;
+		} return 1;
+		default: return 0;
+		}
+	}
+	case CT_B_SOIL: {
+		switch (t) {
+		case EF_PH_BLOCK: {
+			effect_ph_block_data *rd = d;
+			((int*)s->common_data)[0] = rd->x;
+			((int*)s->common_data)[1] = rd->y;
+			((int*)s->common_data)[2] = rd->z;
+		} return 1;
+		case EF_MATERIAL: {
+			effect_material_data *rd = d;
+			((int*)s->common_data)[3] = rd->dur;
+		} return 1;
+		default: return 0;
+		}
+	}
+	case CT_LIQUID: {
+		switch (t) {
+		case EF_PH_LIQUID: {
+			effect_ph_liquid_data *rd = d;
+			((int*)s->common_data)[0] = rd->type;
+			((int*)s->common_data)[1] = rd->amount;
+		} return 1;
+		default: return 0;
+		}
+	}
+	case CT_RAIN: {
+		switch (t) {
+		case EF_RAIN: {
+			effect_rain_data *rd = d;
+			((int*)s->common_data)[0] = rd->n;
+			((int*)s->common_data)[1] = rd->type;
+		} return 1;
+		default: return 0;
+		}
+	}
+	default: return 0;
+	}
+}
+
+int common_type_size[] = {
+	[CT_NONE] = 0,
+	[CT_B_FLOOR] = 4 * sizeof(int),
+	[CT_B_WALL] = 4 * sizeof(int),
+	[CT_B_SOIL] = 4 * sizeof(int),
+	[CT_LIQUID] = 2 * sizeof(int),
+	[CT_RAIN] = 2 * sizeof(int),
 };

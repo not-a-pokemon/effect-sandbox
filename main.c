@@ -55,6 +55,25 @@ int entity_rend_chr(ent_ptr ent, char *chr, int *r, int *g, int *b, int *a) {
 		}
 	}
 	{
+		effect_rain_data rd;
+		if (entity_load_effect(ent, EF_RAIN, &rd)) {
+			if (rd.type == 0) {
+				*chr = '\'';
+				*r = 13;
+				*g = 90;
+				*b = 232;
+				*a = 128;
+			} else {
+				*chr = '*';
+				*r = 227;
+				*g = 237;
+				*b = 237;
+				*a = 128;
+			}
+			return 1;
+		}
+	}
+	{
 		effect_ph_liquid_data d;
 		if (entity_load_effect(ent, EF_PH_LIQUID, &d)) {
 			*chr = '~';
@@ -68,6 +87,21 @@ int entity_rend_chr(ent_ptr ent, char *chr, int *r, int *g, int *b, int *a) {
 				*b = 0;
 				*g = 200;
 				*a = 128;
+			}
+			return 1;
+		}
+	}
+	{
+		effect_pile_data d;
+		if (entity_load_effect(ent, EF_PILE, &d)) {
+			*chr = ',';
+			switch (d.type) {
+			case PILE_SNOW: {
+				*r = 227;
+				*g = 237;
+				*b = 237;
+				*a = 128;
+			} break;
 			}
 			return 1;
 		}
@@ -173,6 +207,8 @@ void render_camera(SDL_Renderer *rend, camera_view_s *cam) {
 				}
 				entity_l_s *t = sector_get_block_entities(s, x, y, z);
 				for (; t != NULL; t = t->next) {
+					if (entity_has_effect(t->ent, EF_RAIN) && rng_next_g(g_dice) % 16 != 7)
+						continue;
 					entity_s *te = ent_aptr(t->ent);
 					char c_chr;
 					int c_r, c_g, c_b, c_a;
@@ -289,10 +325,22 @@ void render_status(SDL_Renderer *rend, entity_s *ent, int xb, int yb) {
 	}
 }
 
+void spawn_comp_block(int x, int y, int z, block_type t, int dur) {
+	int xc = 0, yc = 0, zc = 0;
+	coord_normalize(&x, &xc);
+	coord_normalize(&y, &yc);
+	coord_normalize(&z, &zc);
+	sector_s *sec = sector_get_sector(g_sectors, xc, yc, zc);
+	if (sec != NULL) {
+		sec->block_blocks[x][y][z].type = t;
+		sec->block_blocks[x][y][z].dur = dur;
+	}
+}
+
 void spawn_simple_floor_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
-	new_ent->common_type = CT_FLOOR;
+	new_ent->common_type = CT_B_FLOOR;
 	((int*)new_ent->common_data)[0] = x;
 	((int*)new_ent->common_data)[1] = y;
 	((int*)new_ent->common_data)[2] = z;
@@ -358,7 +406,7 @@ void spawn_pressure_floor(int x, int y, int z, int w_thresold) {
 void spawn_simple_wall_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
-	new_ent->common_type = CT_WALL;
+	new_ent->common_type = CT_B_WALL;
 	((int*)new_ent->common_data)[0] = x;
 	((int*)new_ent->common_data)[1] = y;
 	((int*)new_ent->common_data)[2] = z;
@@ -390,7 +438,7 @@ void spawn_simple_wall(int x, int y, int z) {
 void spawn_simple_soil_uncomp(int x, int y, int z) {
 	entity_s *new_ent = o_alloc_entity();
 	new_ent->effects = NULL;
-	new_ent->common_type = CT_SOIL_BLOCK;
+	new_ent->common_type = CT_B_SOIL;
 	((int*)new_ent->common_data)[0] = x;
 	((int*)new_ent->common_data)[1] = y;
 	((int*)new_ent->common_data)[2] = z;
@@ -892,7 +940,7 @@ void setup_field(void) {
 	}
 	{
 		entity_s *new_ent = o_alloc_entity();
-		new_ent->effects = NULL;
+		new_ent->common_type = CT_LIQUID;
 		{
 			effect_s *ef_ph = alloc_effect(EF_PH_ITEM);
 			effect_ph_item_data *d = (void*)ef_ph->data;
@@ -904,11 +952,10 @@ void setup_field(void) {
 			effect_prepend(new_ent, ef_ph);
 		}
 		{
-			effect_s *ef_ph = alloc_effect(EF_PH_LIQUID);
-			effect_ph_liquid_data *d = (void*)ef_ph->data;
-			d->amount = 200;
-			d->type = LIQ_WATER;
-			effect_prepend(new_ent, ef_ph);
+			effect_ph_liquid_data d;
+			d.amount = G_PUDDLE_MAX * 5;
+			d.type = LIQ_WATER;
+			entity_store_effect(ent_sptr(new_ent), EF_PH_LIQUID, &d);
 		}
 		entity_prepend(g_entities, new_ent);
 		g_entities = new_ent;
@@ -1038,10 +1085,11 @@ void setup_field(void) {
 		{
 			effect_s *new_eff = alloc_effect(EF_PLANT);
 			effect_plant_data *d = (void*)new_eff->data;
-			d->plant_type = 0; // TODO make plant types
+			d->plant_type = PLANT_TREE;
 			d->stored_energy = 10;
 			d->stored_water = 10;
 			d->growth = 0;
+			d->cycle_time = 2355;
 			effect_prepend(new_ent, new_eff);
 		}
 		{
@@ -1078,7 +1126,9 @@ void setup_field(void) {
 	for (int i = 0; i < G_SECTOR_SIZE * 5; i++) {
 		for (int j = 0; j < G_SECTOR_SIZE * 5; j++) {
 			// spawn_simple_floor(i, j, 0);
-			spawn_simple_soil(i, j, -1);
+			for (int k = -1; k >= -6; k--) {
+				spawn_simple_soil(i, j, k);
+			}
 		}
 	}
 	char ch = 'a';
@@ -1101,16 +1151,20 @@ void setup_field(void) {
 #define INPUT_ARG_MAX 16
 
 typedef enum cmap_arg_t_type {
+	CMAP_ARG_NONE,
 	CMAP_ARG_ENTITY,
 	CMAP_ARG_TILE,
 	CMAP_ARG_EFFECT,
 	CMAP_ARG_ATTACK,
-	CMAP_ARG_NONE,
+	CMAP_ARG_NUMBER,
 } cmap_arg_t_type;
 
 typedef struct cmap_arg_t {
-	void *data;
-	ent_ptr data_p;
+	union {
+		void *data;
+		ent_ptr data_p;
+		long long data_l;
+	};
 	cmap_arg_t_type type;
 } cmap_arg_t;
 
@@ -1161,6 +1215,16 @@ void params_push_attack(attack_l_s *s) {
 	}
 	gu_params.args[gu_params.nargs].type = CMAP_ARG_ATTACK;
 	gu_params.args[gu_params.nargs].data = s;
+	gu_params.nargs++;
+}
+
+void params_push_number(long long x) {
+	if (gu_params.nargs == INPUT_ARG_MAX) {
+		fprintf(stderr, "[WARN] Exceeded INPUT_ARG_MAX\n");
+		return;
+	}
+	gu_params.args[gu_params.nargs].type = CMAP_ARG_NUMBER;
+	gu_params.args[gu_params.nargs].data_l = x;
 	gu_params.nargs++;
 }
 
@@ -1296,6 +1360,18 @@ void cmap_grab(cmap_params_t *p) {
 	trigger_grab(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, mat_tag);
 }
 
+void cmap_grab_pile(cmap_params_t *p) {
+	if (p->nargs != 3) {
+		fprintf(stderr, "Wrong number of arguments to cmap_grab_pile\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY || p->args[2].type != CMAP_ARG_NUMBER) {
+		fprintf(stderr, "Wrong argument to cmap_grab_pile\n");
+		return;
+	}
+	trigger_grab_pile(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, (int)(intptr_t)p->args[2].data);
+}
+
 void cmap_open_door(cmap_params_t *p) {
 	if (p->nargs != 2) {
 		fprintf(stderr, "Wrong number of arguments to cmap_open_door, found %d\n", p->nargs);
@@ -1425,9 +1501,22 @@ void cmap_press_button(cmap_params_t *p) {
 	trigger_press_button(ent_sptr(p->control_ent), p->args[0].data, p->args[1].data_p, p->args[2].data);
 }
 
+void cmap_wear(cmap_params_t *p) {
+	// TODO cmap_wear
+	if (p->nargs != 2) {
+		fprintf(stderr, "Wrong number of arguments to cmap_wear\n");
+		return;
+	}
+	if (p->args[0].type != CMAP_ARG_EFFECT || p->args[1].type != CMAP_ARG_ENTITY) {
+		fprintf(stderr, "Wrong arguments to cmap_wear\n");
+		return;
+	}
+	// trigger_wear(ent_sptr(p->contol_ent), p->args[0].data, p->args[1].data_p);
+}
+
 const cmap_t command_maps[] = {
 	{'/', NULL, cmap_toggle_skip_moving},
-	{'w', NULL, cmap_wait},
+	{'.', NULL, cmap_wait},
 	{'<', NULL, cmap_go_up},
 	{'>', NULL, cmap_go_down},
 	{SDLK_KP_1, NULL, cmap_go},
@@ -1441,6 +1530,7 @@ const cmap_t command_maps[] = {
 	{'p', "He(Put where?)", cmap_put},
 	{'d', "H(Drop what?)", cmap_drop},
 	{'g', "He(Grab what?)g(By what?)", cmap_grab},
+	{'G', "He(Grab from pile?)n(How much?)", cmap_grab_pile},
 	{'o', "He(Open door?)", cmap_open_door},
 	{'O', "He(Close door?)", cmap_close_door},
 	{'t', "He(Into what?)", cmap_throw},
@@ -1448,6 +1538,7 @@ const cmap_t command_maps[] = {
 	{'f', "H(Fill which container?)e(Where to fill from?)", cmap_fill_container},
 	{'e', "H(Which container to empty?)", cmap_empty_container},
 	{'r', "H(Which limb?)e(Where to press?)g(Which button?)", cmap_press_button},
+	{'w', "H(What to wear?)b(Where to wear?)", cmap_wear},
 };
 const int n_command_maps = sizeof(command_maps) / sizeof(command_maps[0]);
 
@@ -1460,6 +1551,7 @@ typedef enum inputw_type {
 	INPUTW_LIMB_DEFAULT,
 	INPUTW_EFFECT,
 	INPUTW_ATTACK,
+	INPUTW_NUMBER,
 } inputw_type;
 
 typedef struct inputw_tile_s {
@@ -1497,6 +1589,11 @@ typedef struct inputw_attack_s {
 	attack_l_s *cur_sel;
 } inputw_attack_s;
 
+typedef struct inputw_number_s {
+	char val[20];
+	int len;
+} inputw_number_s;
+
 #define INPUTW_MSG_LEN 24
 typedef struct inputw_t {
 	inputw_type type;
@@ -1507,6 +1604,7 @@ typedef struct inputw_t {
 		inputw_limb_s u_limb;
 		inputw_effect_s u_effect;
 		inputw_attack_s u_attack;
+		inputw_number_s u_number;
 	} data_u;
 } inputw_t;
 
@@ -1596,6 +1694,26 @@ void input_queue_attack(void) {
 	inputw_queue_n++;
 }
 
+void input_queue_number(void) {
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	inputw_queue[inputw_queue_n].type = INPUTW_NUMBER;
+	strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
+	inputw_queue_n++;
+}
+
+void input_queue_body_part(void) {
+	if (inputw_queue_n == INPUTW_MAXNR) {
+		fprintf(stderr, "Exceeded number of input layers\n");
+		return;
+	}
+	// inputw_queue[inputw_queue_n].type = ...;
+	// strncpy(inputw_queue[inputw_queue_n].msg, inputw_message, INPUTW_MSG_LEN);
+	// inputw_queue_n++;
+}
+
 void inputw_clear(void) {
 	inputw_n = 0;
 	cmap_params_cleanup();
@@ -1652,6 +1770,20 @@ int command_arg_a(const char *s) {
 	return nr;
 }
 
+int command_arg_n(const char *s) {
+	int nr;
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_number();
+	return nr;
+}
+
+int command_arg_b(const char *s) {
+	int nr;
+	nr = command_parse_message(s, inputw_message, INPUTW_MSG_LEN);
+	input_queue_body_part();
+	return nr;
+}
+
 void cmap_clear_args(void) {
 	gu_params.nargs = 0;
 }
@@ -1683,6 +1815,12 @@ void command_map_exec(entity_s *control_ent, int n) {
 		} break;
 		case 'a': {
 			t += 1 + command_arg_a(s+t+1);
+		} break;
+		case 'n': {
+			t += 1 + command_arg_n(s+t+1);
+		} break;
+		case 'b': {
+			t += 1 + command_arg_b(s+t+1);
 		} break;
 		default: {
 			fprintf(stderr, "Unrecognised command char '%c'\n", s[t]);
@@ -1905,6 +2043,39 @@ int inputw_attack_key(SDL_Keycode sym) {
 	return 0;
 }
 
+int inputw_number_key(SDL_Keycode sym) {
+	if (inputw_n <= 0) {
+		fprintf(stderr, "No input layers in inputw_number_key\n");
+		return 0;
+	}
+	if (inputws[inputw_n - 1].type != INPUTW_NUMBER) {
+		fprintf(stderr, "Input layer isn't number\n");
+		return 0;
+	}
+	inputw_number_s *e = &inputws[inputw_n - 1].data_u.u_number;
+	if (sym == SDLK_ESCAPE) {
+		inputw_clear();
+		return INP_M_REDRAW;
+	}
+	if (sym >= '0' && sym <= '9') {
+		if (e->len < 19) {
+			e->val[e->len++] = sym;
+		}
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_BACKSPACE) {
+		if (e->len > 0)
+			e->len--;
+		return INP_M_REDRAW;
+	}
+	if (sym == SDLK_RETURN) {
+		e->val[e->len] = '\0';
+		params_push_number(strtoll(e->val, NULL, 10));
+		return INP_M_NEXT;
+	}
+	return 0;
+}
+
 void render_layer_adjust(camera_view_s *cam) {
 	cam->cursor_x = -1;
 	cam->cursor_y = -1;
@@ -1939,6 +2110,7 @@ void render_list_layers(SDL_Renderer *rend, int x, int y) {
 			inputws[i].type == INPUTW_LIMB_DEFAULT ? "limb_default" :
 			inputws[i].type == INPUTW_EFFECT ? "effect" :
 			inputws[i].type == INPUTW_ATTACK ? "attack" :
+			inputws[i].type == INPUTW_NUMBER ? "number" :
 			"*",
 			inputws[i].msg
 		);
@@ -1990,10 +2162,8 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 					wd.amount
 				);
 			} else {
-				effect_render_data d;
-				if (entity_load_effect(cur_ent, EF_RENDER, &d)) {
-					rend_char = d.chr;
-				} else {
+				int r, g, b, a;
+				if (!entity_rend_chr(cur_ent, &rend_char, &r, &g, &b, &a)) {
 					rend_char = '\0';
 				}
 				if (rend_char != '\0') {
@@ -2118,6 +2288,25 @@ void render_layer_specific(SDL_Renderer *rend, int x, int y) {
 			l = l->next;
 		}
 	} break;
+	case INPUTW_NUMBER: {
+		inputw_number_s *e = &inputws[inputw_n - 1].data_u.u_number;
+		/*int i;
+		for (i = 0; i < e->len; i++)
+			buf[i] = e->val[i];
+		buf[e->len] = '\0';*/
+		snprintf(buf, 32, "%d %.*s", e->len, e->len, e->val);
+		SDL_Color colo = {.r = 0, .g = 255, .b = 128};
+		SDL_Surface *surf = TTF_RenderText_Blended(gr_font, buf, colo);
+		SDL_Texture *tex = SDL_CreateTextureFromSurface(rend, surf);
+		SDL_Rect target;
+		target.x = x;
+		target.y = y;
+		target.w = surf->w;
+		target.h = surf->h;
+		SDL_RenderCopy(rend, tex, NULL, &target);
+		SDL_DestroyTexture(tex);
+		SDL_FreeSurface(surf);
+	} break;
 	default: {
 	}
 	}
@@ -2180,6 +2369,11 @@ void inputw_layer_enter(void) {
 		}
 		e->attacks = entity_list_attacks(ent_sptr(gu_params.control_ent), ent_sptr(target));
 		e->cur_sel = e->attacks;
+	} break;
+	case INPUTW_NUMBER: {
+		inputw_number_s *e = &inputws[inputw_n - 1].data_u.u_number;
+		e->len = 0;
+		memset(e->val, 0, sizeof(e->val));
 	} break;
 	default: {
 	}
@@ -2379,6 +2573,9 @@ int main(int argc, char **argv) {
 					case INPUTW_ATTACK: {
 						mask = inputw_attack_key(sym);
 					} break;
+					case INPUTW_NUMBER: {
+						mask = inputw_number_key(sym);
+					} break;
 					default: {
 					}
 					}
@@ -2408,6 +2605,27 @@ int main(int argc, char **argv) {
 			}
 		}
 		if (trigger_done > 0 || skip_tick) {
+#if 0
+			for (int i = 0; i < 10; i++) {
+				for (int j = 0; j < 10; j++) {
+					entity_s *new_ent = o_alloc_entity();
+					new_ent->common_type = CT_RAIN;
+					((int*)new_ent->common_data)[0] = 20;
+					((int*)new_ent->common_data)[1] = 1;
+					effect_s *new_eff = alloc_effect(EF_PH_ITEM);
+					effect_ph_item_data *pd = (void*)new_eff->data;
+					pd->x = i;
+					pd->y = j;
+					pd->z = 10;
+					pd->weight = 0;
+					pd->parent = ENT_NULL;
+					effect_prepend(new_ent, new_eff);
+					attach_generic_entity(ent_sptr(new_ent));
+					entity_prepend(g_entities, new_ent);
+					g_entities = new_ent;
+				}
+			}
+#endif
 			process_tick(g_entities);
 			g_entities = clear_nonexistent(g_entities);
 			need_redraw = 1;

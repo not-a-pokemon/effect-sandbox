@@ -1,5 +1,4 @@
 #include "rng.h"
-#include <stdint.h>
 
 static uint32_t rng_table_p[256] = {
 	495,171,274,426,328,325,135,6,387,373,157,58,327,94,92,133,47,301,124,483,417,
@@ -18,10 +17,6 @@ static uint32_t rng_table_p[256] = {
 };
 
 void rng_init(rng_state_s *dice) {
-	int i;
-	for (i = 0; i < 256; i ++) {
-		dice->table[i] = rng_table_p[i];
-	}
 	dice->index = 0;
 	dice->index1 = 0;
 	dice->index2 = 0;
@@ -31,7 +26,13 @@ void rng_init(rng_state_s *dice) {
 uint32_t rng_next(rng_state_s *dice) {
 	dice->index++;
 	dice->index &= 0xFF;
-	return dice->table[dice->index];
+	return rng_table_p[dice->index];
+}
+
+uint32_t rng_next_g(rng_state_s *dice) {
+	dice->index_g++;
+	dice->index_g &= 0xFF;
+	return rng_table_p[dice->index_g];
 }
 
 uint64_t rng_bigrange(rng_state_s *dice) {
@@ -44,5 +45,5 @@ uint64_t rng_bigrange(rng_state_s *dice) {
 	dice->index2 &= 0xFF;
 	dice->index3 += 7;
 	dice->index3 &= 0xFF;
-	return dice->table[dice->index] ^ (dice->table[dice->index1] << 8) ^ (dice->table[dice->index2] << 16) ^ (dice->table[dice->index3] << 24);
+	return rng_table_p[dice->index] ^ (rng_table_p[dice->index1] << 8) ^ (rng_table_p[dice->index2] << 16) ^ (rng_table_p[dice->index3] << 24);
 }

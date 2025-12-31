@@ -45,6 +45,7 @@ decl-s a_pressure_plate int thresold :
 decl-s a_circle_move 'empty :
 
 decl-s m_grab uint32_t eff_tag ent-r ent uint32_t mat_tag :
+decl-s m_grab_pile uint32_t eff_tag ent-r ent int amount :
 decl-s m_drop uint32_t eff_tag :
 decl-s m_put uint32_t eff_tag ent-r where :
 decl-s m_throw
@@ -53,6 +54,9 @@ decl-s m_throw
 	int y
 	int z
 	int speed :
+decl-s m_wear
+	uint32_t hand_tag
+	ent-r body_part :
 
 #/ decl-s r_touch_shoot_projectile 'empty :
 decl-s r_bottle_dispenser
@@ -104,12 +108,66 @@ decl-s door
 	int opened :
 
 decl-s plant
-	int plant_type #/ A tree, ivy plant, etc.
+	'E plant_type plant_type #/ A tree, ivy plant, etc.
 	int stored_energy
 	int stored_water
-	int growth :
+	int growth
+	int cycle_time :
 
 #/ An object is held in place by its connection to a static block
 decl-s rooted
 	int dur
 	ent-r ent :
+
+#/ [n] raindrops
+decl-s rain
+	int n
+	int type : #/ Snow or rain
+
+#/ Pile of snow/sand/any other small particles
+decl-s pile
+	int amount
+	'E pile_type type :
+
+decl-s clothes
+	int body_part
+	uint32_t body_mask
+	:
+
+decl-block floor
+	ph_block <coordinates> prop PB_FLOOR .
+	render r 0 g 255 b 0 a 128 chr '_' .
+	material
+		type MAT_WOOD
+		dur <durability>
+		prop 0
+		tag 0 .
+	:
+
+decl-block wall
+	ph_block <coordinates> prop (PB_FLOOR_UP | PB_BLOCK_MOVEMENT) .
+	render r 0 g 255 b 0 a 128 chr '#' .
+	material
+		type MAT_WOOD
+		dur <durability>
+		prop 0
+		tag 0 .
+	:
+
+decl-block soil
+	ph_block <coordinates> prop (PB_FLOOR_UP | PB_BLOCK_MOVEMENT) .
+	render r 255 g 181 b 15 a 128 chr '#' .
+	material
+		type MAT_SOIL
+		dur <durability>
+		prop 0
+		tag 0 .
+	:
+
+decl-common liquid
+	ph_liquid type <int:0> amount <int:1> .
+	:
+
+decl-common rain
+	rain n <int:0> type <int:1> .
+	:

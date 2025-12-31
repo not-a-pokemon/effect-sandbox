@@ -9,10 +9,10 @@ LDFLAGS!=pkg-config --libs sdl2 SDL2_ttf
 SDL_CFLAGS!=pkg-config --cflags sdl2 SDL2_ttf
 
 SRCS=\
-	 main.c\
-	 entity.c\
-	 omalloc.c\
-	 rng.c
+	main.c\
+	entity.c\
+	omalloc.c\
+	rng.c
 
 OBJ=$(SRCS:.c=.o)
 

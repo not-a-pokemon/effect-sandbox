@@ -92,6 +92,11 @@ typedef struct effect_m_grab_data {
 	ent_ptr ent;
 	uint32_t mat_tag;
 } effect_m_grab_data;
+typedef struct effect_m_grab_pile_data {
+	uint32_t eff_tag;
+	ent_ptr ent;
+	int amount;
+} effect_m_grab_pile_data;
 typedef struct effect_m_drop_data {
 	uint32_t eff_tag;
 } effect_m_drop_data;
@@ -106,6 +111,10 @@ typedef struct effect_m_throw_data {
 	int z;
 	int speed;
 } effect_m_throw_data;
+typedef struct effect_m_wear_data {
+	uint32_t hand_tag;
+	ent_ptr body_part;
+} effect_m_wear_data;
 typedef struct effect_r_bottle_dispenser_data {
 	uint32_t mat_tag;
 } effect_r_bottle_dispenser_data;
@@ -159,15 +168,28 @@ typedef struct effect_door_data {
 	int opened;
 } effect_door_data;
 typedef struct effect_plant_data {
-	int plant_type;
+	enum plant_type plant_type;
 	int stored_energy;
 	int stored_water;
 	int growth;
+	int cycle_time;
 } effect_plant_data;
 typedef struct effect_rooted_data {
 	int dur;
 	ent_ptr ent;
 } effect_rooted_data;
+typedef struct effect_rain_data {
+	int n;
+	int type;
+} effect_rain_data;
+typedef struct effect_pile_data {
+	int amount;
+	enum pile_type type;
+} effect_pile_data;
+typedef struct effect_clothes_data {
+	int body_part;
+	uint32_t body_mask;
+} effect_clothes_data;
 typedef enum effect_type {
 	EF_B_NONEXISTENT,
 	EF_B_INDEX,
@@ -194,9 +216,11 @@ typedef enum effect_type {
 	EF_A_PRESSURE_PLATE,
 	EF_A_CIRCLE_MOVE,
 	EF_M_GRAB,
+	EF_M_GRAB_PILE,
 	EF_M_DROP,
 	EF_M_PUT,
 	EF_M_THROW,
+	EF_M_WEAR,
 	EF_R_BOTTLE_DISPENSER,
 	EF_STATS,
 	EF_PH_LIQUID,
@@ -212,5 +236,22 @@ typedef enum effect_type {
 	EF_DOOR,
 	EF_PLANT,
 	EF_ROOTED,
+	EF_RAIN,
+	EF_PILE,
+	EF_CLOTHES,
 	EF_UNKNOWN = -1
 } effect_type;
+typedef enum common_type_t {
+	CT_NONE = 0,
+	CT_B_FLOOR,
+	CT_B_WALL,
+	CT_B_SOIL,
+	CT_LIQUID,
+	CT_RAIN,
+} common_type_t;
+typedef enum block_type {
+BLK_EMPTY = 0,
+	BLK_FLOOR,
+	BLK_WALL,
+	BLK_SOIL,
+} block_type;

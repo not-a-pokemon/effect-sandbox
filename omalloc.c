@@ -2,8 +2,8 @@
 #include "entity.h"
 #include <stdio.h>
 
-#define O_BUF_S         2048
-#define O_ENTITY_NR     2048
+#define O_BUF_S         8192
+#define O_ENTITY_NR     8192
 #define O_EFF_NR        8192
 #define O_EFF_ZERO_NR   8192
 #define O_EFF_SMALL_NR  8192

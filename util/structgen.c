@@ -4,6 +4,7 @@
 #include <ctype.h>
 
 #define MAX_NAME_LEN 32
+#define MAX_CONSUME 512
 #define ENUM_TAG 1
 #define ENT_R_TAG 2
 #define ENT_N_TAG 3
@@ -57,7 +58,15 @@ void* m_malloc(size_t size) {
 	return t;
 }
 
-char consume_buf[MAX_NAME_LEN];
+void m_trunc(char *dest, const char *src, size_t n) {
+	size_t p;
+	for (p = 0; src[p] && p + 1 < n; p++) {
+		dest[p] = src[p];
+	}
+	dest[p] = '\0';
+}
+
+char consume_buf[MAX_CONSUME];
 
 int consume_end(FILE *inp) {
 	int peek;
@@ -68,8 +77,8 @@ int consume_end(FILE *inp) {
 		return 1;
 	int c = 0;
 	while (1) {
-		if (c >= MAX_NAME_LEN - 1) {
-			consume_buf[MAX_NAME_LEN - 1] = '\0';
+		if (c >= MAX_CONSUME - 1) {
+			consume_buf[MAX_CONSUME - 1] = '\0';
 			fprintf(stderr, "Word too long: `%s'\n", consume_buf);
 			exit(1);
 		}
@@ -87,6 +96,56 @@ void consume(FILE *inp) {
 		die("Unexpected EOF\n");
 }
 
+int consume_expr_end(FILE *inp) {
+	int peek;
+	do {
+		peek = fgetc(inp);
+	} while (m_whitespace(peek) && peek != EOF);
+	if (peek == EOF)
+		return 1;
+	int c = 0, b = 0;
+	while (1) {
+		if (c >= MAX_CONSUME - 1) {
+			consume_buf[MAX_CONSUME - 1] = '\0';
+			fprintf(stderr, "Word too long: `%s'\n", consume_buf);
+			exit(1);
+		}
+		consume_buf[c++] = peek;
+		if (peek == '(')
+			b++;
+		else if (peek == ')')
+			b--;
+		peek = fgetc(inp);
+		if (peek == EOF) {
+			if (b) {
+				fprintf(stderr, "Unmatched bracket, EOF\n");
+				exit(1);
+			} else {
+				break;
+			}
+		}
+		if (m_whitespace(peek) && !b)
+			break;
+	}
+	consume_buf[c] = '\0';
+	return 0;
+}
+
+void consume_expr(FILE *inp) {
+	if (consume_expr_end(inp))
+		die("Unexpected EOF\n");
+}
+
+#define EXTEND(A, CAP, N, BY) { \
+		N += (BY); \
+		while (CAP < N) { \
+			CAP *= 2; \
+			if (!CAP) CAP = 1; \
+		} \
+		A = realloc(A, sizeof(*A) * CAP); \
+		if (A == NULL) die("Bad realloc\n"); \
+	}
+
 typedef struct decl_field_t {
 	int type_tag;
 	char type_name[MAX_NAME_LEN];
@@ -99,18 +158,45 @@ typedef struct decl_t {
 	unsigned empty:1;
 	unsigned exter:1;
 	unsigned exter_rem:1;
-	decl_field_t *fields;
-	decl_field_t *last_field;
+	struct decl_field_t *fields;
+	struct decl_field_t *last_field;
 } decl_t;
 
 decl_t *decls = NULL;
 size_t decl_cap = 0, decl_n = 0;
 
+typedef struct common_field_t {
+	char name[MAX_NAME_LEN];
+	char *value;
+	struct common_field_t *next;
+} common_field_t;
+
+typedef struct common_effect_t {
+	char name[MAX_NAME_LEN];
+	unsigned writable:1;
+	struct common_field_t *fields;
+	struct common_field_t *last_field;
+	struct common_effect_t *next;
+} common_effect_t;
+
+typedef struct common_t {
+	char name[MAX_NAME_LEN];
+	int common_size;
+	struct common_effect_t *effects;
+	struct common_effect_t *last_effect;
+} common_t;
+
+common_t *block_defs = NULL;
+size_t block_defs_cap = 0, block_defs_n = 0;
+
+common_t *common_defs = NULL;
+size_t common_defs_cap = 0, common_defs_n = 0;
+
 void add_decl_field(decl_t *d, int type_tag, const char *type_name, const char *name) {
 	decl_field_t *x = m_malloc(sizeof(decl_field_t));
 	x->type_tag = type_tag;
-	strncpy(x->type_name, type_name, MAX_NAME_LEN - 1);
-	strncpy(x->name, name, MAX_NAME_LEN - 1);
+	m_trunc(x->type_name, type_name, MAX_NAME_LEN - 1);
+	m_trunc(x->name, name, MAX_NAME_LEN - 1);
 	x->next = NULL;
 	if (d == NULL)
 		die("Fuck\n");
@@ -119,6 +205,55 @@ void add_decl_field(decl_t *d, int type_tag, const char *type_name, const char *
 	if (d->last_field != NULL)
 		d->last_field->next = x;
 	d->last_field = x;
+}
+
+void blockdef_add_field(common_t *d, const char *name, const char *value) {
+	common_field_t *x = m_malloc(sizeof(common_field_t));
+	m_trunc(x->name, name, MAX_NAME_LEN);
+	x->value = strdup(value);
+	x->next = NULL;
+	if (d->last_effect == NULL)
+		die("Impossible\n");
+	if (value[0] == '<')
+		d->last_effect->writable = 1;
+	if (d->last_effect->fields == NULL)
+		d->last_effect->fields = x;
+	if (d->last_effect->last_field != NULL)
+		d->last_effect->last_field->next = x;
+	d->last_effect->last_field = x;
+}
+
+void blockdef_add_effect(common_t *d, const char *name) {
+	common_effect_t *x = m_malloc(sizeof(common_effect_t));
+	m_trunc(x->name, name, MAX_NAME_LEN);
+	x->writable = 0;
+	x->next = NULL;
+	if (d->effects == NULL)
+		d->effects = x;
+	if (d->last_effect != NULL)
+		d->last_effect->next = x;
+	d->last_effect = x;
+	d->last_effect->last_field = NULL;
+	d->last_effect->fields = NULL;
+}
+
+int int_field(common_field_t *f, int *r) {
+	static const char *pref = "<int:";
+	int p;
+	*r = 0;
+	for (p = 0; pref[p]; p++) {
+		if (f->value[p] != pref[p])
+			return 0;
+	}
+	while (f->value[p] >= '0' && f->value[p] <= '9') {
+		*r = 10 * (*r) + f->value[p] - '0';
+		p++;
+	}
+	if (f->value[p++] != '>')
+		return 0;
+	if (f->value[p++] != '\0')
+		return 0;
+	return 1;
 }
 
 int test_comment(FILE *inp) {
@@ -140,17 +275,8 @@ int test_decl(FILE *inp) {
 		fprintf(stderr, "Bad name `%s'", consume_buf);
 		exit(1);
 	}
-	decl_n++;
-	if (decl_n > decl_cap) {
-		size_t decl_cap_new = decl_cap * 2;
-		if (decl_cap_new == 0)
-			decl_cap_new = 1;
-		decls = realloc(decls, decl_cap_new * sizeof(*decls));
-		decl_cap = decl_cap_new;
-		if (decls == NULL)
-			die("Bad realloc\n");
-	}
-	strncpy(decls[decl_n - 1].name, consume_buf, MAX_NAME_LEN);
+	EXTEND(decls, decl_cap, decl_n, 1);
+	m_trunc(decls[decl_n - 1].name, consume_buf, MAX_NAME_LEN);
 	decls[decl_n - 1].fields = NULL;
 	decls[decl_n - 1].last_field = NULL;
 	decls[decl_n - 1].empty = 0;
@@ -192,12 +318,116 @@ int test_decl(FILE *inp) {
 				type_name[0] = '\0';
 				name_w = 1;
 			} else if (m_name(consume_buf)) {
-				strncpy(type_name, consume_buf, MAX_NAME_LEN);
+				m_trunc(type_name, consume_buf, MAX_NAME_LEN);
 				name_w = 1;
 			} else {
 				fprintf(stderr, "Unmatching word `%s'\n", consume_buf);
 				exit(1);
 			}
+		}
+	}
+}
+
+int test_decl_block(FILE *inp) {
+	if (strcmp(consume_buf, "decl-block"))
+		return 0;
+	consume(inp);
+	if (!m_name(consume_buf)) {
+		fprintf(stderr, "Bad name `%s'\n", consume_buf);
+		exit(1);
+	}
+	EXTEND(block_defs, block_defs_cap, block_defs_n, 1);
+	m_trunc(block_defs[block_defs_n - 1].name, consume_buf, MAX_NAME_LEN);
+	// blockdefs have a fixed size of 4
+	block_defs[block_defs_n - 1].common_size = -1;
+	block_defs[block_defs_n - 1].effects = NULL;
+	block_defs[block_defs_n - 1].last_effect = NULL;
+	int effect_w = 1, field_w = 0;
+	char effect_name[MAX_NAME_LEN], field_name[MAX_NAME_LEN];
+	while (1) {
+		if (!effect_w && !field_w) {
+			consume_expr(inp);
+		} else {
+			consume(inp);
+		}
+		if (test_comment(inp)) {
+			;
+		} else if (!effect_w && !field_w) {
+			blockdef_add_field(&block_defs[block_defs_n - 1], field_name, consume_buf);
+			field_w = 1;
+		} else if (!effect_w && field_w && !strcmp(".", consume_buf)) {
+			field_w = 0;
+			effect_w = 1;
+		} else if (!effect_w && field_w && !strcmp("<coordinates>", consume_buf)) {
+			blockdef_add_field(&block_defs[block_defs_n - 1], "x", "<x>");
+			blockdef_add_field(&block_defs[block_defs_n - 1], "y", "<y>");
+			blockdef_add_field(&block_defs[block_defs_n - 1], "z", "<z>");
+		} else if (!effect_w && field_w && m_name(consume_buf)) {
+			m_trunc(field_name, consume_buf, MAX_NAME_LEN);
+			field_w = 0;
+		} else if (effect_w && !strcmp(":", consume_buf)) {
+			return 1;
+		} else if (effect_w && m_name(consume_buf)) {
+			// TODO check for effect name
+			m_trunc(effect_name, consume_buf, MAX_NAME_LEN);
+			blockdef_add_effect(&block_defs[block_defs_n - 1], effect_name);
+			effect_w = 0;
+			field_w = 1;
+		} else {
+			fprintf(stderr, "Unmatching word `%s'\n", consume_buf);
+			exit(1);
+		}
+	}
+}
+
+int test_decl_common(FILE *inp) {
+	if (strcmp(consume_buf, "decl-common"))
+		return 0;
+	consume(inp);
+	if (!m_name(consume_buf)) {
+		fprintf(stderr, "Bad name `%s'\n", consume_buf);
+		exit(1);
+	}
+	EXTEND(common_defs, common_defs_cap, common_defs_n, 1);
+	m_trunc(common_defs[common_defs_n - 1].name, consume_buf, MAX_NAME_LEN);
+	common_defs[block_defs_n - 1].common_size = 0;
+	common_defs[common_defs_n - 1].effects = NULL;
+	common_defs[common_defs_n - 1].last_effect = NULL;
+	int effect_w = 1, field_w = 0;
+	char effect_name[MAX_NAME_LEN], field_name[MAX_NAME_LEN];
+	while (1) {
+		if (!effect_w && !field_w) {
+			consume_expr(inp);
+		} else {
+			consume(inp);
+		}
+		if (test_comment(inp)) {
+			;
+		} else if (!effect_w && !field_w) {
+			blockdef_add_field(&common_defs[common_defs_n - 1], field_name, consume_buf);
+			int p;
+			if (int_field(common_defs[common_defs_n - 1].last_effect->last_field, &p)) {
+				if (p + 1 > common_defs[common_defs_n - 1].common_size)
+					common_defs[common_defs_n - 1].common_size = p + 1;
+			}
+			field_w = 1;
+		} else if (!effect_w && field_w && !strcmp(".", consume_buf)) {
+			field_w = 0;
+			effect_w = 1;
+		} else if (!effect_w && field_w && m_name(consume_buf)) {
+			m_trunc(field_name, consume_buf, MAX_NAME_LEN);
+			field_w = 0;
+		} else if (effect_w && !strcmp(":", consume_buf)) {
+			return 1;
+		} else if (effect_w && m_name(consume_buf)) {
+			// TODO check for effect name
+			m_trunc(effect_name, consume_buf, MAX_NAME_LEN);
+			blockdef_add_effect(&common_defs[common_defs_n - 1], effect_name);
+			effect_w = 0;
+			field_w = 1;
+		} else {
+			fprintf(stderr, "Unmatching word `%s'\n", consume_buf);
+			exit(1);
 		}
 	}
 }
@@ -208,6 +438,10 @@ int parse_base(FILE *inp) {
 	if (test_comment(inp))
 		return 1;
 	if (test_decl(inp))
+		return 1;
+	if (test_decl_block(inp))
+		return 1;
+	if (test_decl_common(inp))
 		return 1;
 	fprintf(stderr, "Unrecognised top-level word: `%s'\n", consume_buf);
 	exit(1);
@@ -365,11 +599,7 @@ void put_table(FILE *to, const char *type_name, const char *table_name, const ch
 		} else if ((mask & TABLE_SKIP_NON_REM) && !has_remover(&decls[i])) {
 			fprintf(to, "NULL");
 		} else {
-			fprintf(to, "%s", data_pre);
-			for (j = 0; decls[i].name[j]; j++) {
-				fputc(decls[i].name[j], to);
-			}
-			fprintf(to, "%s", data_after);
+			fprintf(to, "%s%s%s", data_pre, decls[i].name, data_after);
 		}
 		fprintf(to, ",\n");
 	}
@@ -378,6 +608,7 @@ void put_table(FILE *to, const char *type_name, const char *table_name, const ch
 
 int main(int argc, char **argv) {
 	const char *struct_name = NULL, *func_name = NULL, *inp_name = NULL;
+	int log_functions = 0, log_structs = 0;
 	int i;
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], ".s")) {
@@ -401,20 +632,24 @@ int main(int argc, char **argv) {
 				die("Expected filename after .inp\n");
 			inp_name = argv[i + 1];
 			i++;
+		} else if (!strcmp(argv[i], ".log-f")) {
+			log_functions = 1;
+		} else if (!strcmp(argv[i], ".log-s")) {
+			log_structs = 1;
 		} else {
 			fprintf(stderr, "Unknown parameter `%s'\n", argv[i]);
 			return 1;
 		}
 	}
-	FILE *struct_file = struct_name != NULL ? m_open(struct_name, "w") : NULL;
-	FILE *func_file = func_name != NULL ? m_open(func_name, "w") : NULL;
-	if (struct_file == NULL && func_file == NULL) {
+	if (struct_name == NULL && func_name == NULL) {
 		fprintf(stderr, "Zero output files specified, aborting\n");
 		return 0;
 	}
 	FILE *inp = inp_name != NULL ? m_open(inp_name, "r") : stdin;
 	while (parse_base(inp))
 		;
+	FILE *struct_file = struct_name != NULL ? m_open(struct_name, "w") : NULL;
+	FILE *func_file = func_name != NULL ? m_open(func_name, "w") : NULL;
 	const char *autogen_warn = "/* This file is automatically generated with util/structgen */\n";
 	if (struct_file != NULL)
 		fprintf(struct_file, autogen_warn);
@@ -428,7 +663,8 @@ int main(int argc, char **argv) {
 			 * `exter' flag signifies that it's written somewhere else.
 			 */
 			if (struct_file != NULL && !decls[i].empty && !decls[i].exter) {
-				printf("!! struct %s\n", decls[i].name);
+				if (log_structs)
+					printf("!! struct %s\n", decls[i].name);
 				put_struct(struct_file, &decls[i]);
 			}
 			if (func_file != NULL) {
@@ -437,9 +673,11 @@ int main(int argc, char **argv) {
 				 * `exter' flag signifies they are written somewhere else.
 				 */
 				if (!decls[i].empty && !decls[i].exter) {
-					printf("!! loader %s\n", decls[i].name);
+					if (log_functions)
+						printf("!! loader %s\n", decls[i].name);
 					put_loader(func_file, &decls[i]);
-					printf("!! dumper %s\n", decls[i].name);
+					if (log_functions)
+						printf("!! dumper %s\n", decls[i].name);
 					put_dumper(func_file, &decls[i]);
 				}
 				/*
@@ -447,7 +685,8 @@ int main(int argc, char **argv) {
 				 * `exter_rem' flag signifies it's written somewhere else.
 				 */
 				if (!decls[i].exter_rem && has_remover(&decls[i])) {
-					printf("!! remover %s\n", decls[i].name);
+					if (log_functions)
+						printf("!! remover %s\n", decls[i].name);
 					put_remover(func_file, &decls[i]);
 				}
 			}
@@ -465,10 +704,313 @@ int main(int argc, char **argv) {
 		}
 		fprintf(struct_file, "\tEF_UNKNOWN = -1\n} effect_type;\n");
 	}
+	if (struct_file != NULL) {
+		size_t i, j;
+		fprintf(struct_file, "typedef enum common_type_t {\n\tCT_NONE = 0,\n");
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(struct_file, "\tCT_B_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), struct_file);
+			fprintf(struct_file, ",\n");
+		}
+		for (i = 0; i < common_defs_n; i++) {
+			fprintf(struct_file, "\tCT_");
+			for (j = 0; common_defs[i].name[j]; j++)
+				fputc(toupper(common_defs[i].name[j]), struct_file);
+			fprintf(struct_file, ",\n");
+		}
+		fprintf(struct_file, "} common_type_t;\n");
+		fprintf(struct_file, "typedef enum block_type {\nBLK_EMPTY = 0,\n");
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(struct_file, "\tBLK_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), struct_file);
+			fprintf(struct_file, ",\n");
+		}
+		fprintf(struct_file, "} block_type;\n");
+	}
 	if (func_file != NULL) {
 		put_table(func_file, "int", "effect_data_size", "sizeof(effect_", "_data)", TABLE_EMPTY_ZERO);
 		put_table(func_file, "effect_dump_t", "effect_dump_functions", "effect_dump_", "", TABLE_EMPTY_NULL);
 		put_table(func_file, "effect_scan_t", "effect_scan_functions", "effect_scan_", "", TABLE_EMPTY_NULL);
 		put_table(func_file, "effect_rem_t", "effect_rem_functions", "effect_rem_", "", TABLE_SKIP_NON_REM);
+	}
+	if (func_file != NULL) {
+		size_t i, j;
+		fprintf(
+			func_file,
+			"int entity_block_load_effect(sector_s *sec, int x, int y, int z, effect_type t, void *d) {\n"
+			"\tblock_s blk = sec->block_blocks[x][y][z];\n\tswitch (blk.type) {\n"
+		);
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\tcase BLK_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(
+				func_file,
+				": {\n"
+				"\t\tswitch (t) {\n"
+			);
+			for (common_effect_t *ef = block_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(
+					func_file,
+					": {\n"
+					"\t\t\teffect_%s_data *rd = d;\n",
+					ef->name
+				);
+				for (common_field_t *f = ef->fields; f != NULL; f = f->next) {
+					if (!strcmp("<durability>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = blk.dur;\n", f->name);
+					} else if (!strcmp("<x>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = x + sec->x * G_SECTOR_SIZE;\n", f->name);
+					} else if (!strcmp("<y>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = y + sec->y * G_SECTOR_SIZE;\n", f->name);
+					} else if (!strcmp("<z>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = z + sec->z * G_SECTOR_SIZE;\n", f->name);
+					} else {
+						fprintf(func_file, "\t\t\trd->%s = %s;\n", f->name, f->value);
+					}
+				}
+				fprintf(func_file, "\t\t} return 1;\n");
+			}
+			fprintf(
+				func_file,
+				"\t\tdefault: return 0;\n"
+				"\t\t}\n"
+				"\t} break;\n"
+			);
+		}
+		fprintf(
+			func_file,
+			"\tdefault: return 0;\n"
+			"\t}\n"
+			"}\n"
+		);
+		fprintf(
+			func_file,
+			"int entity_block_has_effect(sector_s *sec, int x, int y, int z, effect_type t) {\n"
+			"\tblock_s blk = sec->block_blocks[x][y][z];\n"
+			"\tswitch (blk.type) {\n"
+		);
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\tcase BLK_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(
+				func_file,
+				": {\n"
+				"\tswitch (t) {\n"
+			);
+			for (common_effect_t *ef = block_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(
+					func_file,
+					":\n"
+				);
+			}
+			fprintf(
+				func_file,
+				"\t\t\treturn 1;\n"
+				"\t\tdefault: return 0;\n"
+				"\t\t}\n"
+				"\t} break;\n"
+			);
+		}
+		fprintf(func_file, "\tdefault: return 0;\n\t}\n}\n");
+		fprintf(
+			func_file,
+			"int entity_common_has_effect(entity_s *s, effect_type t) {\n"
+			"\tswitch (s->common_type) {\n"
+		);
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_B_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(
+				func_file,
+				": {\n"
+				"\tswitch (t) {\n"
+			);
+			for (common_effect_t *ef = block_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(func_file, ":\n");
+			}
+			fprintf(
+				func_file,
+				"\t\t\treturn 1;\n"
+				"\t\tdefault: return 0;\n"
+				"\t\t}\n"
+				"\t} break;\n"
+			);
+		}
+		for (i = 0; i < common_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_");
+			for (j = 0; common_defs[i].name[j]; j++)
+				fputc(toupper(common_defs[i].name[j]), func_file);
+			fprintf(
+				func_file,
+				": {\n"
+				"\tswitch (t) {\n"
+			);
+			for (common_effect_t *ef = common_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(func_file, ":\n");
+			}
+			fprintf(
+				func_file,
+				"\t\t\treturn 1;\n"
+				"\t\tdefault: return 0;\n"
+				"\t\t}\n"
+				"\t} break;\n"
+			);
+		}
+		fprintf(func_file, "\tdefault: return 0;\n\t}\n}\n");
+		fprintf(
+			func_file,
+			"int entity_common_load_effect(entity_s *s, effect_type t, void *d) {\n"
+			"\tswitch (s->common_type) {\n"
+		);
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_B_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(func_file, ": {\n\t\tswitch (t) {\n");
+			for (common_effect_t *ef = block_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(
+					func_file,
+					": {\n"
+					"\t\t\teffect_%s_data *rd = d;\n",
+					ef->name
+				);
+				for (common_field_t *f = ef->fields; f != NULL; f = f->next) {
+					if (!strcmp("<durability>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = ((int*)s->common_data)[3];\n", f->name);
+					} else if (!strcmp("<x>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = ((int*)s->common_data)[0];\n", f->name);
+					} else if (!strcmp("<y>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = ((int*)s->common_data)[1];\n", f->name);
+					} else if (!strcmp("<z>", f->value)) {
+						fprintf(func_file, "\t\t\trd->%s = ((int*)s->common_data)[2];\n", f->name);
+					} else {
+						fprintf(func_file, "\t\t\trd->%s = %s;\n", f->name, f->value);
+					}
+				}
+				fprintf(func_file, "\t\t} return 1;\n");
+			}
+			fprintf(func_file, "\t\tdefault: return 0;\n\t\t}\n\t} break;\n");
+		}
+		for (i = 0; i < common_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_");
+			for (j = 0; common_defs[i].name[j]; j++)
+				fputc(toupper(common_defs[i].name[j]), func_file);
+			fprintf(func_file, ": {\n\t\tswitch (t) {\n");
+			for (common_effect_t *ef = common_defs[i].effects; ef != NULL; ef = ef->next) {
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(
+					func_file,
+					": {\n"
+					"\t\t\teffect_%s_data *rd = d;\n",
+					ef->name
+				);
+				for (common_field_t *f = ef->fields; f != NULL; f = f->next) {
+					int p;
+					if (int_field(f, &p)) {
+						fprintf(func_file, "\t\t\trd->%s = ((int*)s->common_data)[%d];\n", f->name, p);
+					} else {
+						fprintf(func_file, "\t\t\trd->%s = %s;\n", f->name, f->value);
+					}
+				}
+				fprintf(func_file, "\t\t} return 1;\n");
+			}
+			fprintf(func_file, "\t\tdefault: return 0;\n\t\t}\n\t} break;\n");
+		}
+		fprintf(
+			func_file,
+			"\tdefault: return 0;\n"
+			"\t}\n}\n"
+		);
+		fprintf(
+			func_file,
+			"int entity_common_store_effect(entity_s *s, effect_type t, void *d) {\n"
+			"\tswitch (s->common_type) {\n"
+		);
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_B_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(func_file, ": {\n\t\tswitch (t) {\n");
+			for (common_effect_t *ef = block_defs[i].effects; ef != NULL; ef = ef->next) {
+				if (!ef->writable)
+					continue;
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(func_file, ": {\n\t\t\teffect_%s_data *rd = d;\n", ef->name);
+				for (common_field_t *f = ef->fields; f != NULL; f = f->next) {
+					if (!strcmp("<durability>", f->value)) {
+						fprintf(func_file, "\t\t\t((int*)s->common_data)[3] = rd->%s;\n", f->name);
+					} else if (!strcmp("<x>", f->value)) {
+						fprintf(func_file, "\t\t\t((int*)s->common_data)[0] = rd->%s;\n", f->name);
+					} else if (!strcmp("<y>", f->value)) {
+						fprintf(func_file, "\t\t\t((int*)s->common_data)[1] = rd->%s;\n", f->name);
+					} else if (!strcmp("<z>", f->value)) {
+						fprintf(func_file, "\t\t\t((int*)s->common_data)[2] = rd->%s;\n", f->name);
+					}
+				}
+				fprintf(func_file, "\t\t} return 1;\n");
+			}
+			fprintf(func_file, "\t\tdefault: return 0;\n\t\t}\n\t}\n");
+		}
+		for (i = 0; i < common_defs_n; i++) {
+			fprintf(func_file, "\tcase CT_");
+			for (j = 0; common_defs[i].name[j]; j++)
+				fputc(toupper(common_defs[i].name[j]), func_file);
+			fprintf(func_file, ": {\n\t\tswitch (t) {\n");
+			for (common_effect_t *ef = common_defs[i].effects; ef != NULL; ef = ef->next) {
+				if (!ef->writable)
+					continue;
+				fprintf(func_file, "\t\tcase EF_");
+				for (j = 0; ef->name[j]; j++)
+					fputc(toupper(ef->name[j]), func_file);
+				fprintf(func_file, ": {\n\t\t\teffect_%s_data *rd = d;\n", ef->name);
+				for (common_field_t *f = ef->fields; f != NULL; f = f->next) {
+					int p;
+					if (int_field(f, &p)) {
+						fprintf(func_file, "\t\t\t((int*)s->common_data)[%d] = rd->%s;\n", p, f->name);
+					}
+				}
+				fprintf(func_file, "\t\t} return 1;\n");
+			}
+			fprintf(func_file, "\t\tdefault: return 0;\n\t\t}\n\t}\n");
+		}
+		fprintf(func_file, "\tdefault: return 0;\n\t}\n}\n");
+		fprintf(func_file, "\nint common_type_size[] = {\n\t[CT_NONE] = 0,\n");
+		for (i = 0; i < block_defs_n; i++) {
+			fprintf(func_file, "\t[CT_B_");
+			for (j = 0; block_defs[i].name[j]; j++)
+				fputc(toupper(block_defs[i].name[j]), func_file);
+			fprintf(func_file, "] = 4 * sizeof(int),\n");
+		}
+		for (i = 0; i < common_defs_n; i++) {
+			fprintf(func_file, "\t[CT_");
+			for (j = 0; common_defs[i].name[j]; j++)
+				fputc(toupper(common_defs[i].name[j]), func_file);
+			fprintf(func_file, "] = %d * sizeof(int),\n", common_defs[i].common_size);
+		}
+		fprintf(func_file, "};\n");
 	}
 }

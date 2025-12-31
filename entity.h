@@ -9,19 +9,12 @@
 #define G_TRACER_RESOLUTION 256
 #define G_TRACER_GRAVITY 128
 #define G_MOVE_START_DELAY 128
-#define G_PUDDLE_MAX 64
+#define G_PUDDLE_MAX 2048
 
 #define STORED_CPTR_BIT (1<<30)
 
 #define ENT_NULL 0UL
 typedef uint64_t ent_ptr;
-
-typedef enum block_type {
-	BLK_EMPTY = 0,
-	BLK_FLOOR,
-	BLK_WALL,
-	BLK_SOIL,
-} block_type;
 
 typedef enum rotation_type {
 	RT_DICE,
@@ -32,6 +25,10 @@ typedef enum rotation_type {
 typedef enum liquid_type {
 	LIQ_WATER,
 } liquid_type;
+
+typedef enum pile_type {
+	PILE_SNOW,
+} pile_type;
 
 struct entity_s;
 struct effect_s;
@@ -82,12 +79,10 @@ typedef enum attack_type {
 	ATK_N_COUNT = 4,
 } attack_type;
 
-typedef enum common_type_t {
-	CT_NONE = 0,
-	CT_WALL,
-	CT_FLOOR,
-	CT_SOIL_BLOCK,
-} common_type_t;
+typedef enum plant_type {
+	PLANT_GRASS,
+	PLANT_TREE,
+} plant_type;
 
 #include "gen-effects.h"
 
@@ -95,9 +90,9 @@ typedef struct effect_s {
 	struct effect_s *prev;
 	struct effect_s *next;
 	enum effect_type type;
-	char _pad[4];
+	// char _pad[4];
 	/* Must be aligned as underlying effect_data */
-	char data[];
+	intmax_t data[];
 } effect_s;
 
 typedef struct entity_s {
@@ -155,6 +150,8 @@ extern sector_s *g_sectors;
 extern entity_s *g_entities;
 extern rng_state_s *g_dice;
 
+extern int common_type_size[];
+
 extern const char *attack_type_string[];
 
 effect_s* alloc_effect(effect_type t);
@@ -176,6 +173,13 @@ int block_fallable(int x, int y, int z);
 int sector_get_block_blocked_movement(sector_s *s, int x, int y, int z);
 int sector_get_block_stairs(sector_s *s, int x, int y, int z);
 int sector_get_block_slope(sector_s *s, int x, int y, int z);
+
+// This function is defined in a generated file
+int entity_block_load_effect(sector_s *sec, int x, int y, int z, effect_type t, void *d);
+int entity_block_has_effect(sector_s *sec, int x, int y, int z, effect_type t);
+int entity_common_has_effect(entity_s *s, effect_type t);
+int entity_common_load_effect(entity_s *s, effect_type t, void *d);
+int entity_common_store_effect(entity_s *s, effect_type t, void *d);
 
 int entity_has_effect(ent_ptr s, effect_type t);
 int entity_load_effect(ent_ptr s, effect_type t, void *d);
@@ -221,12 +225,15 @@ void apply_attack(ent_ptr s);
 void liquid_deduplicate(ent_ptr s);
 void apply_liquid_movement(ent_ptr s);
 
+void pile_deduplicate(ent_ptr s);
+
 void apply_physics(ent_ptr s);
 
 void trigger_move(ent_ptr s, int x, int y, int z);
 void trigger_go_up(ent_ptr s);
 void trigger_go_down(ent_ptr s);
 void trigger_grab(ent_ptr s, effect_s *h, ent_ptr w, uint32_t tag);
+void trigger_grab_pile(ent_ptr s, effect_s *h, ent_ptr w, int amount);
 void trigger_drop(ent_ptr s, effect_s *h);
 void trigger_put(ent_ptr s, effect_s *h, ent_ptr w);
 void trigger_throw(ent_ptr s, effect_s *h, int x, int y, int z, int speed);
@@ -235,8 +242,10 @@ void trigger_fill_cont(ent_ptr s, effect_s *h, ent_ptr t);
 void trigger_empty_cont(ent_ptr s, effect_s *h);
 void trigger_press_button(ent_ptr s, effect_s *h, ent_ptr t, effect_s *w);
 void trigger_open_door(ent_ptr s, effect_s *h, ent_ptr t, int dir);
+void trigger_wear(ent_ptr s, effect_s *h, ent_ptr b);
 
 void hand_grab(ent_ptr ent, effect_s *hand, ent_ptr item, uint32_t tag);
+void hand_grab_pile(ent_ptr ent, effect_s *hand, ent_ptr item, int amount);
 void hand_drop(ent_ptr ent, effect_s *hand);
 void hand_put(ent_ptr ent, effect_s *hand, ent_ptr w);
 void hand_throw(ent_ptr s, effect_s *h, int x, int y, int z, int speed);
@@ -291,6 +300,8 @@ attack_l_s* entity_list_attacks(ent_ptr s, ent_ptr o);
 
 int container_get_amount(ent_ptr s);
 void container_add_liquid(ent_ptr s, liquid_type t, int amount);
+void top_add_liquid(int x, int y, int z, liquid_type t, int amount);
+void top_add_pile(int x, int y, int z, pile_type t, int amount);
 
 void dmg_deal(ent_ptr s, damage_type t, int v);
 
